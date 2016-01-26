@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<Model FileName="Q:\67201\HighTC\MUF\L1.model" CreationTime="1/14/2016 12:24:10 PM" AssemblyVersion="1.0.1.26234" UserName="orloff">
+  <MenuStripItems>
+    <SelectResultsDirectoryToolStripMenuItem Enabled="True" Checked="False" />
+    <CalibrateToolStripMenuItem Enabled="False" Checked="False" />
+  </MenuStripItems>
+  <MenuStripTextBoxes>
+    <ResultsDirectory Enabled="True" Text="" />
+    <NumberMonteCarloSimulations Enabled="True" Text="1000" />
+    <StartFrequency Enabled="True" Text="1" />
+    <StopFrequency Enabled="True" Text="50" />
+    <StepFrequency Enabled="True" Text="1" />
+    <EpsEffR Enabled="True" Text="1" />
+    <EpsEffI Enabled="True" Text="0" />
+  </MenuStripTextBoxes>
+  <MenuStripComboBoxes />
+  <Controls>
+    <DifferentialModel ControlType="System.Windows.Forms.CheckBox" ControlText="Only include variation of this model from its mean in the analysis." FullName="Me_TableLayoutPanel1_DifferentialModel" Enabled="True" Visible="True" Checked="False" />
+    <ModelOrigin ControlType="System.Windows.Forms.ComboBox" ControlText="NIST/FBH" FullName="Me_TableLayoutPanel1_GroupBox2_ModelOrigin" Enabled="True" Visible="False" SelectedIndex="0" Count="1">
+      <Item Index="0" Text="NIST/FBH" />
+    </ModelOrigin>
+    <ModelType ControlType="System.Windows.Forms.ComboBox" ControlText="Planar transmission line from measured propagation constant" FullName="Me_TableLayoutPanel1_GroupBox2_ModelType" Enabled="True" Visible="True" SelectedIndex="0" Count="8">
+      <Item Index="0" Text="Planar transmission line from measured propagation constant" />
+      <Item Index="1" Text="Closed-form CPW Transmission Line" />
+      <Item Index="2" Text="Elaborate closed-form CPW Transmission Line - no radiation" />
+      <Item Index="3" Text="Elaborate closed-form CPW Transmission Line - fast radiation model" />
+      <Item Index="4" Text="Elaborate closed-form CPW Transmission Line - elaborate radiation model" />
+      <Item Index="5" Text="Probe-tip alignment error" />
+      <Item Index="6" Text="CPW short" />
+      <Item Index="7" Text="CPW open" />
+    </ModelType>
+    <ModelName ControlType="System.Windows.Forms.TextBox" ControlText="Generic transmission line determined from propagation constant." FullName="Me_TableLayoutPanel1_GroupBox2_ModelName" Enabled="True" Visible="True" />
+    <ModelGroup ControlType="System.Windows.Forms.ComboBox" ControlText="Coplanar waveguide" FullName="Me_TableLayoutPanel1_GroupBox2_ModelGroup" Enabled="True" Visible="True" SelectedIndex="4" Count="11">
+      <Item Index="0" Text="Generic" />
+      <Item Index="1" Text="Coaxial transmission lines" />
+      <Item Index="2" Text="Rectangular waveguide" />
+      <Item Index="3" Text="Microstrip" />
+      <Item Index="4" Text="Coplanar waveguide" />
+      <Item Index="5" Text="Cables" />
+      <Item Index="6" Text="Coupling" />
+      <Item Index="7" Text="Antennas" />
+      <Item Index="8" Text="Noise" />
+      <Item Index="9" Text="Operators" />
+      <Item Index="10" Text="User models" />
+    </ModelGroup>
+         <ModelDescription ControlType="System.Windows.Forms.TextBox" ControlText="Generic transmission line with a non-50 ohm characteristic impedance in a 50 ohm system. For quasi-TEM lines, the characteristic impedance can be determined from the propagation constant measured by the calibration algorithm and the capacitance per unit length. This is appropriate for most microstip and coplanar lines fabricated on low-loss substrates, and for coaxial lines employing low-loss dielectrics.&#xD;&#xA; If the capacitance per unit length is set equal to zero, no impedance transformation is applied (i.e. S11=S22=0). This can be useful for rectangular waveguide problems or when the calibration is being performed with a reference impedance equal to the characteristic impedance of the line.&#xD;&#xA;&#xD;&#xA;Authored by Dylan Williams." FullName="Me_TableLayoutPanel1_GroupBox3_ModelDescription" Enabled="True" Visible="True" />
+    <DescriptionTextBox ControlType="System.Windows.Forms.TextBox" ControlText="" FullName="Me_TableLayoutPanel1_GroupBox4_DescriptionTextBox" Enabled="True" Visible="True" />
+    <ModelMechanisms ControlType="CustomFormControls.FLV_FixedDetailsList" ControlText="List of the mechanisms used in the model" FullName="Me_TableLayoutPanel1_GroupBox1_Panel4_ModelMechanisms" Enabled="True" Visible="True" Count="2">
+      <Item Index="0" Text="Capacitance per unit length" Count="3">
+        <SubItem Index="0" Text="Capacitance per unit length" />
+        <SubItem Index="1" Text="" />
+        <SubItem Index="2" Text="" />
+      </Item>
+      <Item Index="1" Text="Length" Count="3">
+        <SubItem Index="0" Text="Length" />
+        <SubItem Index="1" Text="Q:\67201\HighTC\MUF\L1.parameter" />
+        <SubItem Index="2" Text="100  um" />
+      </Item>
+    </ModelMechanisms>
+  </Controls>
+</Model>
