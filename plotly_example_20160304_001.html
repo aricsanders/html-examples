@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <!-- Plotly.js -->
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+
+<body>
+<table><td>
+    <div id="myDiv" style="width: 480px; height: 400px;"><!-- Plotly chart will be drawn inside this DIV --></div>
+</td><td>
+    <div id="myDiv2" style="width: 480px; height: 400px;"><!-- Plotly chart will be drawn inside this DIV --></div>
+</td></table>
+
+  <script>
+var data = [
+  {
+    x: [0, 1, 2],
+    y: [6, 10, 2],
+    error_y: {
+      type: 'data',
+      array: [1, 2, 3],
+      visible: true
+    },
+    type: 'scatter'
+  }
+];
+var layout = {
+  legend: {
+    y: 0.5,
+    yref: 'paper',
+    font: {
+      family: 'Arial, sans-serif',
+      size: 20,
+      color: 'grey',
+    }
+  },
+  title:'Data Labels on the Plot'
+};
+
+Plotly.newPlot('myDiv', data,layout);
+Plotly.newPlot('myDiv2', data, layout);
+
+  </script>
+</body>
+
+</html>
