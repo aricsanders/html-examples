@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Summer Note Example</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <!-- It is important to put the bootstrap scripts in the head -->
+  <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css"/>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+  <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+    <script src="//cdnjs.cloudflare.com/ajax/libs/react/0.13.3/react-with-addons.js"></script>
+        <link href="./dist/summernote.css" rel="stylesheet">
+    <script src="./dist/summernote.js"></script>
+
+</head>
+<body>
+<div id="summernote">Hello Summernote</div>
+<script>
+    $(document).ready(function() {
+  $('#summernote').summernote();
+  $('#hide-summernote').click(function(){
+  $('#notes').toggle();
+  console.log($('#summernote').summernote('code'))
+  });
+});
+</script>
+</body>
+</html>
