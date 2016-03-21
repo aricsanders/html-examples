@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SVG Example</title>
+</head>
+<body>
+<h1>My SVG example</h1>
+<svg height="400" width="400">
+    <g>
+  <line x1="50" y1="50" x2="200" y2="50" stroke="black" stroke-width="2"/>
+   <circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red" />
+    <text x="45" y="55" >n1</text>
+
+    <circle cx="200" cy="50" r="20" stroke="black" stroke-width="3" fill="red" />
+    </g>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-50 -100 200 200">
+  <defs>
+    <marker id='head' orient='auto' markerWidth='2' markerHeight='4'
+            refX='0.1' refY='2'>
+      <path d='M0,0 V4 L2,2 Z' fill='red' />
+    </marker>
+  </defs>
+ <a xlink:href="http://example.com/link/">
+  <path
+    marker-end='url(#head)'
+    stroke-width='5' fill='none' stroke='black'
+    d='M0,0 C45,45 45,-45 90,0'
+    />
+     </a>
+</svg>​
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1">
+  <a xlink:href="http://example.com/link/">
+    <text x="10" y="25" >An example link.</text>
+  </a>
+</svg>
+<table>
+    <tr>
+        <td><button type="button" onclick="alert('Hello world!')">Click Me!</button></td>
+        <td><button type="button" onclick="alert('Hello world!')">Click Me!</button></td>
+        <td><button type="button" onclick="alert('Hello world!')">Click Me!</button></td>
+    </tr>
+    <tr>
+        <td><button type="button" onclick="alert('Hello world!')">Click Me!</button></td>
+        <td><button type="button" onclick="alert('Hello world!')">Click Me!</button></td>
+        <td><button type="button" onclick="alert('Hello world!')">Click Me!</button></td>
+    </tr>
+</table>
+</body>
+</html>

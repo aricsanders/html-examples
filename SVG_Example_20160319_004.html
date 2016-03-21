@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SVG Example</title>
+     <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css"/>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+  <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+  <style>.circle2, p:hover, h1:hover, a:hover {
+    background-color: yellow;
+}
+      circle:hover {fill:blue;}
+      .circle2:hover {fill:yellow;opacity:.3;}
+      line:hover {stroke-width:5;}
+  </style>
+</head>
+<body>
+<h1>My SVG example</h1>
+
+
+<svg height="250" width="250">
+    <defs>
+    <marker id='head' orient='auto' markerWidth='1' markerHeight='2'
+            refX='0.1' refY='2'>
+      <path d='M0,0 V4 L2,2 Z' fill='red' />
+    </marker>
+  </defs>
+
+    <g>
+
+   <a xlink:href="http://example.com/link/">
+       <line x1="50" y1="50" x2="200" y2="50" stroke="black" stroke-width="3"/>
+       </a>
+  <line x1="50" y1="50" x2="200" y2="200" stroke="black" stroke-width="2"/>
+  <path
+  id='arrow-line'
+  marker-mid='url(#head)'
+  marker-end='url(#head)'
+  stroke-width='3'
+  fill='none' stroke='black'
+  d='M50,50 L100,100 L200,200'/>
+   <circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red" />
+   <a xlink:href="http://example.com/link/"> <text x="45" y="55" >n1</text></a>
+
+    <a xlink:href="http://example.com/link/">
+        <circle class="circle2" cx="200" cy="50" r="20" stroke="black" stroke-width="3" fill="red" />
+        </a>
+    </g>
+    <circle class="circle2" cx="200" cy="200" r="20" stroke="black" stroke-width="3" fill="red" />
+</svg>
+
+</body>
+</html>
