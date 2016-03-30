@@ -1,0 +1,2895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MEASLPX.txt</title>
+    <link href="prism.css" rel="stylesheet" />
+</head>
+<body>
+<h1> A highlighted Plain Text version of MEASLPX.txt Basic Program</h1>
+<pre><code class="language-basic"><script>10    ! RE-STORE "E:/USER/RIDDLE/MEASLPX"
+20    Rev$="150122"
+30    !
+40    ! "MEASLP"   measurement program to create 6-port type files on HP 8510
+50    ! converted 8/28/96 to run under HPBasic for Windows.  rfk
+60    ! modified 7/16/97 to prevent cal set from being turned off when
+70    ! cal set = present setting is selected (see SUB State).
+80    ! Modified 10/1698 to set elect delay to 0 and phase offset to 0
+90    !
+100   ! This program takes data from the 8510 (and in the future the 360) and
+110   ! and stores it in the same way data is stored for the 6-ports.
+120   !
+130   ! Control of the program is mainly through this main program.
+140   !   program flow via Sessioninfo
+150   !                    Createmeasfile
+160   !                    and Averages
+170   !        also various housekeeping via Nineprinter
+180   !                                      Anal
+190   !                                      Setana
+200   !                                      and State
+210   !
+220   ! Common statements are as in MEAS6 except for
+230   !        /N/ Nonrecip,D8536(10,806,9),Averon,First,Calset
+240   !              Nonrecip - is the device not the same in fwd and rev
+250   !                         (S12<>S21)
+260   !              D8536 - array to initially take data from 8510.
+270   !              Averon - turns the averaging in the 8510 on.
+280   !              First - variable to find if a sub has been called
+290   !              Calset - Which cal stored in the 8510 is being used.
+300   !        /F/ Fstart,Fstop
+310   !              Fstart - starting frequency of the 8510
+320   !              Fstart - ending frequency of the 8510
+330   !
+340   ! Sparam_list$:   Column 1       Column 2        Column 3
+350   !               S parameter     Measurement      Trace No.
+360   !                                  Name
+370   !           EX:    S11          'CH1_S11_1'         1
+380   !
+390   !
+400   OPTION BASE 1
+410   !
+420   COM /Qua/Qua,G
+430   COM /System/Spid$[20],Systemletter$[1],Connectors$[26],Operator$[10],Headident$[30],Headsign
+440   COM /Files/Calfile$[10],Caldirectory$[30],Caldisc$[30],Powerfile$[10],Powerdirectory$[30],Powerdisc$[30]
+450   COM /Freqinfo/Freq(1601),Numfreqs,Freqremeasured(1606),Levels(150,3)
+460   COM /Measdev/Sp,Meastype$[10],Devicedescript$(2)[80],Devicenum$(2)[6],Comment1$[80],Comment2$[80],Comment3$[80],Settings$(30,2)[10]
+470   COM /Meascontrol/Numrepeats,Numconnects,Numphases
+480   COM /N/Nonrecip,D8536(10,806,9),Averon,First,Calset
+490   COM /F/Fstart,Fstop
+500   COM /Prt/@Prt,Prt
+510   !
+520   DIM Cset_array$(10,2)[8],Sparam_list$(4,3)[18]
+530   DIM Units$[3]
+540   !
+550   ALLOCATE Dataindex(10,806),Measfile$(2)[10],Connremeas(10),Pr(10),P$[30]
+560   !
+570   MASS STORAGE IS "C:"
+580   DEG
+590   ASSIGN @Prt TO 10
+600   Prt=10
+610   !
+620   CLEAR SCREEN
+630   CLEAR 7
+640   !
+650   P$="Prog <MEASLP> Rev "&Rev$
+660   G=0 ! grids for screen plot
+670   Sim=0
+680   Nonrecip=0
+690   First=1
+700   !
+710   !The VNA exports frequencies in Hz. They will be
+720   !converted to Units$ in SUB Freq_info.
+730   !Choices for Units$: Hz, kHz, MHz, GHz
+740   Units$="GHz"
+750   !
+760   !INITIALIZE THE VNA:
+770   CALL Anal(@Anal,Systemletter$,First,Averon)
+780   !
+790   !Freq's are returned in the units specifiec by Units$:
+800   CALL Freq_info(@Anal,Units$,Numfreqs,Fstart,Fstop,Freq(*))
+810   !
+820   CALL Sessioninfo(Remeasure,Connremeas(*),Recalc,Pr(*),Usesimulator,Numsidearms,Fstart,Fstop,@Anal,Nonrecip,Averon,Calset,Pt,Sim,Cset_array$(*),Units$)
+830   CALL Define_traces(@Anal,Meastype$,Sp,Sparam_list$(*))
+840   CALL Read_calsets(@Anal,Cset_array$(*))
+850   CALL Activate_calset(@Anal,Cset_array$(*),Calset)
+851   !
+853   OUTPUT @Anal;":SENSE:AVERAGE:STATE OFF"
+860   !
+870   ALLOCATE Stddev(Numfreqs,Numrepeats,8),Avgs(Numfreqs,Numrepeats,8)
+880   !
+890   IF Meastype$[1,1]="1" THEN
+900     REDIM Avgs(Numfreqs,Numrepeats,2),Stddev(Numfreqs,Numrepeats,2)
+910   END IF
+920   REDIM Dataindex(Numconnects,Numfreqs),D8536(Numconnects,Numfreqs,9)
+930   !
+940   CALL Setuptakedata(Remeasure,P$,Meastime$,Measfile$(*),Dataindex(*),D8536(*),@Anal,Calset,Sparam_list$(*))
+950   CALL Averages(Meastype$,Sp,Meastime$,Settings$(*),Measfile$(*),D8536(*),Calset,Pt,Rev$,Stddev(*),Avgs(*))
+960   !
+970 ! CALL Plotctl(Avgs(*),Stddev(*),1*(POS(Meastype$,"1")=1)+2*(POS(Meastype$,"2")=1),Numfreqs)
+980   !
+990   CALL Resetana(@Anal)
+1000  !
+1010  DEALLOCATE Dataindex(*),Measfile$(*),Connremeas(*),Pr(*),Stddev(*)
+1020  !
+1030  DISP ".... MEASLPX FINISHED ...."
+1040  STOP
+1050  END !...................... MAIN .......................................
+1060  !
+1070  !**********************************************************************************************************
+1080  !
+1090  !
+1100 Controut1: SUB Controut1(X,Y,O$,S$)! Message O$ with using (S$) at position
+1110!  X,Y on screen reguardless of PRINTER IS assingment.
+1120!
+1130!   Input: X,Y - Position on screen
+1140!          S$ - USING string("K" for standard message)
+1150!          O$ - Message string
+1160!
+1170!   Output: Message O$ with using (S$) at position X,Y
+1180!
+1190    CONTROL 1;X,Y
+1200    OUTPUT 1 USING S$;O$
+1210  SUBEND !................... Controut1...................................
+1220  !
+1230 Filenum: SUB Filenum(Directory$,Filetype$,Filenumber)
+1240 ! Finds first available file number of a certain type (same file name
+1250 !  prefix) on the default drive.    JRM.
+1260 !
+1270 ! Input:
+1280 !  Directory$= directory to search for files named like Filetype$.
+1290 !  Filetype$= name of file (prefix) to which the Filenumber will be added.
+1300 !
+1310 ! Output:
+1320 !  Filenumber=lowest-numbered unused file number for file Filetype$ on
+1330 !             disc Drive$ in directory Directory$.
+1340 !
+1350 ! LOCAL:  Cklst(*) is used in the same manner as a checklist from 1 to a
+1360 !         number larger than the highest anticipated filenumber.  The list
+1370 !         of existing filenumbers is checked on the checklist and first
+1380 !         non-checked number of the list is the number of the first
+1390 !         unused filenumber.
+1400 !
+1410    OPTION BASE 1
+1420    ALLOCATE Cat$(120)[80]   ! To store catalog of file names
+1430    ALLOCATE Cklst(120)
+1440    !
+1450    CAT Directory$ TO Cat$(*);SELECT Filetype$,COUNT Nfiles,NAMES
+1460    Length=LEN(Filetype$)  ! Length of Testnumber$&"."&Systemletter$
+1470    ON ERROR GOTO Err  ! If the attempt to read a filenumber after
+1480                        ! Filetype$ ((VAL(Cat$(I)...]) below), results
+1490                        ! in an invalid number -- skip that file.
+1500    FOR File=1 TO Nfiles   ! For each file name in Cat$(*)
+1510      Cklst(VAL(Cat$(File)[Length+1]))=1    ! Put a 1 in Cklst(*) using the
+1520 Err: NEXT File                          ! filenumber as the location index.
+1530    OFF ERROR
+1540    MAT SEARCH Cklst,LOC (0);Filenumber  ! The location of the first
+1550                                         ! zero in the array=first
+1560                                         ! unused filenumber.
+1570  SUBEND !................... Filenum ....................................
+1580  !
+1590 Storemeasheader: SUB Storemeasheader(Remeasure,Port,File$,P$,Meastime$,Dataindex(*),Startfreqarray,Startindexarray,Startdata,Startsum,Startpow)
+1600  ! Store header in new meas file, or update meas time in a remeasured
+1610  !  (copy of original) file:  FILE IS IN RAM UNTIL ALL DATA IS STORED.
+1620  !   ONCE ALL DATA STORED, FILE IS MOVED TO THE HARD DISC.
+1630  !
+1640  ! Input:  Remeasure=1 if remeasuring, =0 otherwise.
+1650  !         Port=1 if this file's device is on port 1 (forward), =2
+1660  !           if on port 2 (reverse).
+1670  !         File$= file's name.
+1680  !         P$= program name & revision string.
+1690  !         Meastime$= time of current measurement run.
+1700  !         Dataindex(Numconnects,Numfreqs)=array of starting records of
+1710  !           data for each connect & frequency.
+1720  !         Startfreqarray,Startindexarray,Startdata,Startsum,Startpow=
+1730  !          start record of storage for freq array, index array, data
+1740  !          block, calib summary block, power calib summary block.
+1750  !
+1760  ! Output: Header info written.
+1770  !
+1780    OPTION BASE 1
+1790    COM /Freqinfo/Freq(*),Numfreqs,Freqremeasured(*),Levels(*)
+1800    COM /System/Spid$,Systemletter$,Connectors$,Operator$,Headident$,Headsign
+1810    COM /Meascontrol/Numrepeats,Numconnects,Numphases
+1820    COM /Measdev/Sp,Meastype$,Devicedescript$(*),Devicenum$(*),Comment1$,Comment2$,Comment3$,Settings$(*)
+1830    COM /Files/Calfile$,Caldirectory$,Caldisc$,Powerfile$,Powerdirectory$,Powerdisc$
+1840    DIM Prog$[10],Rev$[11],Calconn$[26],Caldate$[11],Caltime$[8],Calspid$[20],Calsys$[1],Date$[11]
+1850    !
+1860    ! Enter cal header info to store in meas file header.
+1870    !
+1880    ASSIGN @Calinfo TO *
+1890    Date$=DATE$(TIMEDATE)
+1900    !
+1910    ASSIGN @Header TO "/6port/ramfile/"&File$
+1920    OUTPUT @Header,1;Spid$,Systemletter$,Calconn$,Connectors$,Meastype$,Date$,Meastime$
+1930    !
+1940    IF NOT Remeasure THEN        ! Store rest of header
+1950      Prog$=P$[POS(P$,"<")+1,POS(P$,">")-1]  ! Pull prog name from string
+1960      Rev$=P$[POS(P$,"v")+2]  ! Pull prog revision from string
+1970      OUTPUT @Header,2;Prog$,Rev$,Operator$,Calfile$,Caldate$,Caltime$
+1980      OUTPUT @Header,3;Port,Numconnects,Numrepeats,Numphases,Numfreqs,Startfreqarray,Startindexarray,Startsum,Startpow
+1990      OUTPUT @Header,4;Devicedescript$(Port),Devicenum$(Port)
+2000      OUTPUT @Header,5   ! Position to start of rec
+2010      OUTPUT @Header;Comment1$,Comment2$,Comment3$
+2020      OUTPUT @Header,Startfreqarray   ! Position to start of rec
+2030      OUTPUT @Header;Freq(*)          ! Freq array
+2040      CALL Dataindex(Startdata,Numfreqs,Numconnects,Numrepeats,Dataindex(*))
+2050      OUTPUT @Header,Startindexarray
+2060      OUTPUT @Header;Dataindex(*)
+2070    END IF
+2080    ASSIGN @Header TO *
+2090  SUBEND !................... Storemeasheader ............................
+2100  !
+2110 Dataindex: SUB Dataindex(Startdata,Numfreqs,Numconnects,Numrepeats,Dataindex(*))
+2120    ! Compute & store beginning records of data block for each connect &
+2130    !  frequency.
+2140    !
+2150    ! Input: Startdata= start record of data block
+2160    !        Numfreqs,Numconnects,Numrepeats= # of freqs, connects, repeats.
+2170    !
+2180    ! Output: Dataindex(Numconnects,Numfreqs) has starting records for
+2190    !            each connect & freq. (Start record of data storage in
+2200    !            the file for connect #C, freq #F is in Dataindex(C,F).
+2210    !
+2220    OPTION BASE 1
+2230    Recsperrepeat=2       ! 2 recs stored per repeat: data & residuals
+2240    Rec=Startdata
+2250    FOR Connect=1 TO Numconnects
+2260      FOR Frequency=1 TO Numfreqs
+2270        Dataindex(Connect,Frequency)=Rec
+2280        Rec=Rec+Numrepeats*Recsperrepeat
+2290      NEXT Frequency
+2300    NEXT Connect
+2310  SUBEND !................... Dataindex ..................................
+2320  !
+2330 Sessioninfo: SUB Sessioninfo(Remeasure,Connremeas(*),Recalc,Pr(*),Usesimulator,Numsidearms,Fstart,Fstop,@Anal,Nonrecip,Averon,Calset,Pt,Sim,Cset_array$(*),Units$)
+2340  ! IPs: Remeasure= 1 if operator has chosen to remeasure some freqs or
+2350  !                connects.
+2360  !     Recalc= 1 if original run was a recalc of old power data.
+2370  !     Variables in the COM blocks may have values set by a previous run.
+2380  !
+2390  ! Output:  If Remeasure was input as 1, Recalc=0 on exit.
+2400  !          Calfile$= calibration file name.
+2410  !          If Remeasure= 1, Connremeas(n)=1 if nTH connect is to be
+2420  !              remeasured.
+2430  !          Pr(n)=1 if nTH debugging option was selected by the operator:
+2440  !              Pr(1) to print raw powers, Pr(2) to print power ratios,
+2450  !              Pr(3) to print intermediate results (as well as final
+2460  !              averages), Pr(4) to print difference of original minus
+2470  !              re-zeroed error box if doing a re-zero, Pr(5) to debug
+2480  !              hardware using the SUB Keys from /6PORT/COLLECT.
+2490  !          Numsidearms= # of sidearms on the system, excluding the
+2500  !              incident.  This is read from the /6PORT/SYSINFO file.
+2510  !          COM block variables may be changed, depending on what operator
+2520  !              selects from the menu.
+2530  !
+2540    OPTION BASE 1
+2550    COM /Prt/@Prt,Prt
+2560    COM /Meascontrol/Numrepeats,Numconnects,Numphases
+2570    COM /Measdev/Sp,Meastype$,Devicedescript$(*),Devicenum$(*),Comment1$,Comment2$,Comment3$,Settings$(*)
+2580    COM /Freqinfo/Freq(*),Numfreqs,Freqremeasured(*),Levels(*)
+2590    COM /System/Spid$,Systemletter$,Connectors$,Operator$,Headident$,Headsign
+2600    COM /Files/Calfile$,Caldirectory$,Caldisc$,Powerfile$,Powerdirectory$,Powerdisc$
+2610    !
+2620    DIM Fivedes$[30],Ky$[120] ! Used to present default device descriptions.
+2630    !
+2640    IF Remeasure THEN Recalc=0    ! To allow a remeasure on recalc'd data.
+2650    IF Spid$="" OR Numsidearms=0 THEN   ! System info must be defined.
+2660      ASSIGN @Insysinfo TO "/6PORT/SYSINFO"    ! Open SYSINFO file
+2670      ENTER @Insysinfo,1;Spid$,Systemletter$,Numsidearms
+2680      ASSIGN @Insysinfo TO *
+2690    END IF
+2700    CALL Checkmenuinfo(Calfile$)  ! See if COM variables are already
+2710    ALLOCATE A1$[160]             !   defined -- use current vals as default
+2720    !
+2730    REPEAT   ! Until operator is satisfied all items have been defined.
+2740      GOSUB Showstuff   ! Present menu items to operator
+2750      KEY LABELS ON
+2760      GOSUB Caselist    ! Change items as requested by operator
+2770    UNTIL Done=1  ! operator is done changing menu items.
+2780    SUBEXIT     ! ......................................
+2790    !
+2800    !  THIS SECTION OF CODE PRESENTS MENU TO OPERATOR.  IF AN ITEM HAS BEEN
+2810    !   DEFINED, ITS VALUE IS PRINTED.  IF AN ITEM HAS NOT BEEN DEFINED, THE
+2820    !   MENU NUMBER AND PROMPT FOR WHAT THE ITEM IS ARE HIGHLIGHTED ON THE
+2830    !   MENU.
+2840    !
+2850 Showstuff: CLEAR SCREEN     ! Print values of variables, highlight if value is  needed.
+2860    IF NOT Recalc THEN ! If recalc, all this info will be read from Mp file
+2870                !  menu item #1= operator
+2880      IF Operator$<>"" THEN OUTPUT 1 USING "4(K),7X,#";"â1å -- Operator: ";"Ñ";Operator$;"Ä"
+2890      IF Operator$="" THEN OUTPUT 1 USING "K,7X,#";"â1åÅ -- Operator: ?Ä"
+2900                ! Menu item #2= connector type to measure
+2910      IF Connectors$<>"" THEN OUTPUT 1 USING "3(K),2X";"â2å -- Connector type: Ñ";Connectors$;"Ä"
+2920      IF Connectors$="" THEN OUTPUT 1 USING "K,2X";"â2åÅ -- Connector type: ?Ä"
+2930                ! Menu item #3= port(s) (or direction) to measure devices
+2940      IF POS(Meastype$,"2-port") AND Sp=1 THEN OUTPUT 1 USING "K,5X,#";"â3å -- Direction: Ñ Forward Ä"
+2950      IF POS(Meastype$,"2-port") AND Sp=2 THEN OUTPUT 1 USING "K,5X,#";"â3å -- Direction: Ñ Reverse Ä"
+2960      IF NOT POS(Meastype$,"2-port") AND Sp<>0 THEN OUTPUT 1 USING "K,K,K,5X,#";"â3å -- Port used: Ñ";Sp;"Ä"
+2970      IF NOT POS(Meastype$,"2-port") AND Sp=0 THEN OUTPUT 1 USING "K,5X,#";"â3åÅ -- Port used: ?Ä"
+2980      IF POS(Meastype$,"2-port") AND Sp=0 THEN OUTPUT 1 USING "K,5X,#";"â3åÅ -- Direction: ?Ä"
+2990                 ! Menu item #4= device type.
+3000      IF Meastype$<>"" THEN OUTPUT 1;"â4å -- Device type: Ñ";Meastype$;"Ä"
+3010      IF Meastype$="" THEN OUTPUT 1;"â4åÅ -- Device type: ?Ä"
+3020      !
+3030      GOSUB Fivedes   ! Device descriptions are menu item # 5.
+3040      GOSUB Sixfreqs  ! Freq list is menu item # 6.
+3050      OUTPUT 1;""
+3060                 ! Menu item #7= # of device connects
+3070      IF Numconnects<>0 THEN OUTPUT 1;"â7å -- Number of connects: Ñ";Numconnects;"Ä  ";
+3080      IF Numconnects=0 THEN OUTPUT 1;"â7åÅ -- Number of connects: ?Ä  ";
+3090                 ! Menu item #8= calibration file to use
+3100      IF Calset<>0 THEN OUTPUT 1;"â8å -- Cal set: Ñ";Calset;"Ä  "
+3110      IF Calset=0 THEN OUTPUT 1;"â8å -- Cal set: Ñ Present SettingÄ  "
+3120    END IF
+3130  ! OUTPUT 1;"â9å -- VNA Averaging: Ñ";Averon;"Ä"
+3140  ! OUTPUT 1;"â9å -- VNA Averaging: Ñ";2^Averon;"Ä"
+3150  ! IF Sim=0 THEN OUTPUT 1;"â10å  --  Simulated data? ÑNoÄ "
+3160  ! IF Sim=1 THEN OUTPUT 1;"â10å  --  Simulated data? ÑYesÄ"
+3170    !
+3180    OUTPUT 1 USING "/"   ! Blank line
+3190    !
+3200    !
+3210                 ! Menu item #12 is name of raw power Mp file to use
+3220                 !  for recalcultion.  If Recalc=0, this menu item doesn't
+3230                 !  appear on the menu.
+3240    IF Recalc AND Powerfile$<>"" THEN OUTPUT 1 USING "/,K,K,K,/";"â12å -- Power file (for recalculation): Ñ";Powerfile$;"Ä"
+3250    IF Recalc AND Powerfile$="" THEN OUTPUT 1 USING "/,K";"â12åÅ -- Power file (for recalculation): ?Ä"
+3260    !
+3270    IF NOT Recalc THEN   ! This info will be read in from Mp file if recalc
+3280                 ! Menu item #13&14 appear only if device type is variable.
+3290                 !  Menu item #13 is the number of settings to measure.
+3300                 !  Menu item #14 is a list of the description of those
+3310                 !     settings.
+3320      IF POS(Meastype$,"V") AND Sp THEN ! Device is variable
+3330        IF Numrepeats THEN OUTPUT 1;"â13å -- Number of settings: Ñ";Numrepeats;"Ä"
+3340        IF Numrepeats=0 THEN OUTPUT 1;"â13åÅ -- Number of settings: ?Ä"
+3350        OUTPUT 1;"â14å -- Variable device settings";
+3360        GOSUB Prtvar   ! Menu Item 14= listing of variable device settings.
+3370        OUTPUT 1 USING "/"! Blank line
+3380      END IF
+3390      !
+3400      !      Menu item 15 & 16 have some additional Debugging options:
+3410   !  IF Prt>8 THEN OUTPUT 1;"â15å -- Hard copy (on printer at";Prt;") of final averages?"
+3420   !  IF Prt>8 THEN GOSUB Yn !Prints "Yes" or "No", the current state of the
+3430    END IF                   !  debugging options of menu items 15 & 16.
+3440    !
+3450    !    Indicate to operator that softkey #9 can be used to select
+3460    !       between measure, recalculation, or use simulator, if Remeasure
+3470    !       =0.
+3480    RETURN   !  *****   END OF MENU PRESENTATION SECTION  ***********
+3490    !
+3500    !  THE FOLLOWING SECTION OF CODE ALLOWS OPERATOR TO EDIT THE MENU
+3510    !   ITEMS' DEFINITIONS.  WHAT IS EDITED DEPENDS ON THE NUMBER OF THE
+3520    !   MENU ITEM WHICH THE OPERATOR SELECTS.  ONCE THE ITEMS ARE EDITED,
+3530    !   AN UPDATED MENU IS PRESENTED (BY THE CODE ABOVE).
+3540    !
+3550 Caselist:   !
+3560    A1$="00  Done/  10;01   1  /  11;02   2  /  12;03   3  /  13;04   4  /  14;05   5  /  15;06   6  /  16;07   7;08   8;09   9;10;11;12;13;14;15;16;"
+3570    CALL Keyques("Press softkey for NUMBER OF ITEM TO BE CORRECTED, or Done if all info. correct.",Whattocorrect,A1$,"0",1)
+3580    !
+3590    SELECT Whattocorrect
+3600    CASE 0     !  Done with edits.
+3610      IF Recalc THEN Connok=1  ! Quit-- connectors will be read in from file
+3620      IF NOT Recalc THEN   ! If Recalc, Connectors$ not yet defined.
+3630        IF Sim=0 THEN OUTPUT 1;"VNA CONNECTORS SHOULD BE ---> ";Connectors$
+3640        IF Sim=0 THEN CALL Keyques("Are the "&Connectors$&" mm connectors currently on the VNA?",Connok,"00  Yes;01  No;","R",0)
+3650    !Convert low freq system freqs back to GHz:
+3660    !   IF Spid$="System I" OR Systemletter$="A" AND Connok THEN MAT Freq=Freq/(1000)
+3670        IF Connok THEN CALL Storemenuinfo(Calfile$)  ! Store menu data in
+3680      END IF                                         ! RAM for next run.
+3690      IF Connok OR Sim=1 THEN Done=1 ! If connectors ok, then done with this
+3700    !
+3710    CASE 1  ! Get operator
+3720      GOSUB Operator
+3730    !
+3740    CASE 2  ! Connector type:  reads the SYSINFO file.
+3750      CALL Setsysteminfo(Systemletter$,Connectors$)
+3760    !
+3770    CASE 3  ! Six-port to use
+3780      CALL Getsp(Meastype$,Sp)
+3790    !
+3800    CASE 4  ! Device type
+3810      CALL Getdevtype(Spid$,Sp,Meastype$,Numphases,Nonrecip)
+3820      IF POS(Meastype$,"V")=0 THEN Numrepeats=1  ! Default # of repeats for
+3830    !
+3840    CASE 5  ! Device description(s)              ! a fixed device= 1.
+3850      CALL Getdevdescript(Sp,Devicedescript$(*),Devicenum$(*))
+3860    !
+3870    CASE 6  ! Frequencies
+3880      CALL Freq_info(@Anal,Units$,Numfreqs,Fstart,Fstop,Freq(*))
+3890    ! CALL Freq8536(Freq(*),Numfreqs,Fstart,Fstop,@Anal)
+3900    !
+3910    CASE 7  ! Orients (connects)
+3920      CALL Keyques("Number of device connects?",Numconnects,"00   1;01   2;02   3;03   4;04 Other;","1",0)
+3930      IF Numconnects=5 THEN INPUT "Number of device connects?",Numconnects
+3940    !
+3950    CASE 8  ! Cal file name/disc
+3960      KEY LABELS OFF
+3970      CALL Read_calsets(@Anal,Cset_array$(*))
+3980      CALL Display_calsets(Meastype$,Sp,Cset_array$(*))
+3990    ! IF Calset<>0 THEN OUTPUT KBD;Calset;CHR$(255);"H";
+4000      INPUT "Enter the INDEX NUMBER of CALIBRATION SET to use: ",Calset
+4010      KEY LABELS ON
+4020    !
+4030  ! CASE 9  ! Averaging for the 8510.
+4040   !  Ky$="00   1  / 1024;01   2  / 2048;02   4 / 4096;03   8;04  16;05  32;06  64;07 128;08 256;09 512;10;11;12;"
+4050   !  CALL Keyques("IF Averaging factor?",Averon,Ky$,"0",0)
+4060  !   KEY LABELS OFF
+4070  !   INPUT "Type in the Averaging Factor (use powers of 2): ",Averon
+4080  !   CALL Set_avgs(@Anal,Averon)
+4090  !   KEY LABELS ON
+4100    !
+4110    CASE 10
+4120      CALL Flip(Sim)
+4130    !
+4140    CASE 11
+4150    !
+4160    CASE 12
+4170      KEY LABELS OFF
+4180      IF Recalc THEN OUTPUT KBD;"Mp";      ! Default start of file name
+4190      IF Recalc THEN LINPUT "Enter name of power file",Powerfile$
+4200    !
+4210    CASE 13
+4220      IF POS(Meastype$,"V") THEN
+4230 Howmanysettings: INPUT "Number of device settings to measure?",Numrepeats
+4240        IF Numrepeats>30 THEN  ! If # is > than default DIM of the array
+4250          DISP "CAN'T BE MORE THAN 30 !!!  ";
+4260          GOTO Howmanysettings
+4270        END IF
+4280        REDIM Settings$(Numrepeats,2)
+4290      END IF
+4300    !
+4310    CASE 14
+4320      IF POS(Meastype$,"V") THEN CALL Vardev(Sp,Settings$(*))
+4330    !
+4340    CASE 15
+4350      GOSUB Prt
+4360    !
+4370    CASE 16
+4380      CALL Flip(Pr(5))   ! Change "Yes" to "No" or vice versa
+4390    END SELECT    !  **** end of code that accepts menu item # from operator
+4400    !
+4410    RETURN        !       for what to change on menu   *****
+4420    !
+4430    !   CODE BELOW IS SECTION WHERE OPERATOR ACTUALLY ENTERS MENU
+4440    !   INFORMATION.   SECTIONS OF CODE ARE CALLED DEPENDING ON MENU ITEM
+4450    !   NUMBER OPERATOR PICKED (FROM CODE ABOVE).
+4460    !
+4470 Operator: ! Operator's name?
+4480    KEY LABELS OFF
+4490    OUTPUT KBD;Operator$;CHR$(255);"H";
+4500    REPEAT
+4510      LINPUT "Enter your name.",Operator$
+4520    UNTIL LEN(Operator$)>0
+4530    OUTPUT 1 USING "10X,K,K";"Operator name: ";Operator$
+4540    RETURN
+4550    !
+4560 Fivedes: Fivedes$="â5å -- Description"
+4570    IF Sp<>3 THEN Fivedes$="â5å -- Device description"
+4580    Pt$=""
+4590    I=0
+4600    Cs$=", "
+4610    IF Sp<>3 THEN Cs$=""
+4620    WHILE Sp AND I<((Sp=1 OR Sp=2)+2*(Sp=3))
+4630      I=1+I+(Sp=2)
+4640      IF Sp=3 THEN Pt$="port "&VAL$(I)&" device"    ! 2 devices to describe
+4650      IF Sp=3 AND I>1 THEN Fivedes$=RPT$(" ",16)
+4660      IF Sp=3 AND I>1 THEN Cs$="  "
+4670      IF Devicedescript$(I)="" THEN OUTPUT 1;"â5åÅ -- Device description: ?Ä"
+4680      IF Devicedescript$(I)<>"" THEN OUTPUT 1;Fivedes$;Cs$;Pt$;": Ñ";Devicedescript$(I);"Ä"
+4690      IF Devicenum$(I)<>"" THEN OUTPUT 1;RPT$(" ",17+8*(Sp=3));"Number: Ñ";Devicenum$(I);"Ä"
+4700    END WHILE
+4710    RETURN
+4720    !
+4730 Sixfreqs: !    Menu item #6 is freq list.
+4740    IF Numfreqs=0 OR Freq(1)=0 THEN    ! List not defined yet
+4750      OUTPUT 1;"â6åÅ -- Frequencies: ?Ä";
+4760    ELSE
+4770      OUTPUT 1;"â6å -- Frequencies: Ñ";"First - ";Fstart;" GHz     Last - ";Fstop;" GHz    Number";Numfreqs;"Ä";
+4780    END IF
+4790    RETURN
+4800    !
+4810 Remeasconns: MAT Connremeas=(0)    ! Reset connect remeasure flags
+4820    FOR Reconn=1 TO Numconnects   ! Input which connects to remeasure.
+4830      CALL Keyques("Remeasure connect # "&VAL$(Reconn)&"?",Connremeas(Reconn),"00  Yes;01  No;","R",0)
+4840    NEXT Reconn
+4850    RETURN
+4860    !
+4870 Prtvar: IF Sp<>3 THEN OUTPUT 1;":";    ! Enter description of settings
+4880    IF Sp=3 THEN OUTPUT 1;""            ! for a variable device.
+4890    FOR Dev=1 TO (Sp<>3)+2*(Sp=3)       !  For each device to be measured.
+4900      Whichport=Sp*(Sp=1 OR Sp=2)+Dev*(Sp=3)   ! Device on port 1 or 2.
+4910      IF Sp=3 THEN OUTPUT 1;"          Port";Whichport;" device: ";
+4920      Comma$=""
+4930      FOR Set=1 TO Numrepeats     ! Enter setting descriptions.
+4940        OUTPUT 1;Comma$;"Ñ";Settings$(Set,Whichport);"Ä";
+4950        Comma$=",  "
+4960      NEXT Set
+4970      OUTPUT 1;""
+4980    NEXT Dev    ! If measuring more than one device at a time
+4990    RETURN
+5000    !
+5010 Prt: STATUS 1,0;X,Y  ! Change a "Yes" to "No" or vice versa
+5020    REPEAT            ! for menu items #15
+5030      CALL Keyques("",Ans,"00 Print Aveg's;09 Last  Softkys;","1",0)
+5040      CALL Flip(Pr(Ans))    ! Change "Yes" to "No", or vice versa.
+5050      IF Pr(Ans)=0 THEN Yn$="No "
+5060      IF Pr(Ans)=1 THEN Yn$="Yes"
+5070      Pt=Pr(Ans)
+5080      IF NOT Remeasure THEN CONTROL 1;61,Y-1
+5090      IF (Y-6+Ans)<20 THEN OUTPUT 1;"Ñ";Yn$;"Ä"  ! 19 line screen
+5100    UNTIL Ans=10
+5110    RETURN
+5120    !
+5130 Yn: STATUS 1,0;X,Y  ! Current location of cursor on CRT.
+5140                     ! Print "Yes" or "No" as current choice of operator
+5150    IF Pr(1)=0 THEN Yn$="No "       ! on whether or not to execute
+5160    IF Pr(1)=1 THEN Yn$="Yes"       ! debugging options from the menu.
+5170    Pt=Pr(1)
+5180    CONTROL 1;61,Y-1
+5190    OUTPUT 1;"Ñ";Yn$;"Ä"
+5200    RETURN
+5210  SUBEND !................... Sessioninfo ................................
+5220  !
+5230 Checkmenuinfo: SUB Checkmenuinfo(Calfile$)
+5240  !  Looks in RAM to see if file of measurement info (items input
+5250  !   by operator in SUB Initializevars) exists.  If not, file reading
+5260  !   is skipped.  If yes, info is read in so operator doesn't have to
+5270  !   re-enter everything.
+5280  !
+5290  ! Output:  If RAM file MENUINFO exists, info stored in it is
+5300  !          returned in the COM vars used in SUB Initialize vars.
+5310  !
+5320    OPTION BASE 1
+5330    COM /System/Spid$,Systemletter$,Connectors$,Operator$,Headident$,Headsign
+5340    COM /Flags/Tportflag,Adaptflag,Rezero,Powcal,INTEGER Debugflags
+5350    COM /Meascontrol/Numrepeats,Numconnects,Numphases
+5360    COM /Freqinfo/Freq(*),Numfreqs,Freqremeasured(*),Levels(*)
+5370    COM /Measdev/Sp,Meastype$,Devicedescript$(*),Devicenum$(*),Comment1$,Comment2$,Comment3$,Settings$(*)
+5380    ALLOCATE Str$(1)[10]
+5390    !
+5400    !  See if file exists
+5410    CAT "/6port/ramfile" TO Str$(*);NAMES,SELECT "MENUINFO",COUNT Nfiles
+5420    IF Nfiles THEN
+5430      ON ERROR GOTO Menuinfoproblem
+5440      ASSIGN @In TO "/6port/ramfile/MENUINFO"
+5450      ENTER @In,1;Sp,Numfreqs,Numrepeats,Numconnects,Numphases,Operator$,Calfile$
+5460      ENTER @In,2;Tportflag,Adaptflag,Rezero,Powcal,Debugflags
+5470      ENTER @In,3;Connectors$,Meastype$,Devicenum$(*),Headident$,Headsign
+5480      ENTER @In,4;Devicedescript$(*)
+5490      REDIM Freq(Numfreqs),Settings$(Numrepeats,2)
+5500      ENTER @In,5
+5510      ENTER @In;Settings$(*)
+5520      ENTER @In,10
+5530      ENTER @In;Freq(*)
+5540      ASSIGN @In TO *
+5550    END IF
+5560 Menuinfoproblem: OFF ERROR      ! Skip trying to read the file if
+5570                     !             there are problems
+5580  SUBEND !................... Checkmenuinfo ..............................
+5590  !
+5600 Keyques: SUB Keyques(Crt$,Ans,A1$,R$,Ud,OPTIONAL Loc$)
+5610 ! This SUB pauses the program to allow the operator to answer a question,
+5620 ! usually contained in Crt$, with softkeys.  The softkeys are set with
+5630 ! information contained in A1$.  A "Quit" key is programed to enable the
+5640 ! operator to stop the program if the last softkey is not requested.
+5650 !
+5660 ! Inputs:
+5670 !  Crt$  -  question to be answered
+5680 !  A1$   -  choice of answers to appear on softkeys formated as: 2 diget
+5690 !           softkey number, softkey label, semicolon, next softkey number
+5700 !           etc. (end with a semicolon).  A shifted key's label is to be
+5710 !           at the end of the associated non-shifted key.  Elements of
+5720 !           softkey number and softkey labels need not be in order.
+5730 !             eg:   Labels:    Dot      Intcpt    NxtKey
+5740 !                   Key #       0         10         5
+5750 !                   A1$=    "00Dot   /Intcpt;10;05NxtKey;"
+5760 !  R$    - "R"  reverse 0 and 1 in Ans
+5770 !        - NOT "R"  adds value of R$ to Ans
+5780 !  Ud    - non-zero allows normal function of up and down arrows.
+5790 !
+5800 ! Outputs:
+5810 !   Ans   -  0 to 19 as per requested softkeys 0 to 19 respectively, except
+5820 !            as modified by R$.
+5830 !
+5840    ALLOCATE B(0:19)
+5850    KBD CMODE ON                ! Sets Nimitz style of softkeys
+5860    ON KNOB 1 GOSUB K2          ! Stops screen scrolling with mouse movement
+5870    IF Crt$<>"" THEN DISP Crt$
+5880    SYSTEM PRIORITY 0
+5890    Ans=-1
+5900    REPEAT
+5910      B(VAL(A1$[1,2]))=1  ! checklist array
+5920      ON KEY VAL(A1$[1,2]) LABEL A1$[3,(POS(A1$,";")-1)] GOSUB K2
+5930      A1$=A1$[POS(A1$,";")+1]
+5940    UNTIL A1$=""
+5950    FOR I=0 TO 19
+5960      IF B(I)=0 THEN ON KEY I GOSUB K2
+5970    NEXT I
+5980    IF B(9)=0 THEN ON KEY 9 LABEL " Quit" GOSUB K2     ! Key 9 defaults
+5990    ON KBD ALL GOSUB K2                         ! to "Quit" unless defined
+6000    REPEAT                                      ! otherwise by the input
+6010    UNTIL Ans>-1                                ! to this SUB.
+6020    OFF KBD
+6030    IF Crt$<>"" THEN DISP
+6040    IF Ans=19 THEN DISP Loc$
+6050    IF R$="R" THEN  ! Reverse 0 and 1 in Ans
+6060      IF Ans<2 THEN
+6070        Ans=Ans+1
+6080        IF Ans=2 THEN Ans=0
+6090      END IF
+6100    ELSE
+6110      Ans=Ans+VAL(R$)
+6120    END IF
+6130    SUBEXIT   ! .....................
+6140    !
+6150 K2: Kbd$=KBD$
+6160    IF LEN(Kbd$)>1 THEN
+6170      Kbd$=Kbd$[2;1]
+6180      IF Kbd$="P" THEN
+6190        OFF KBD
+6200        PAUSE
+6210      END IF ! Kbd$="P"
+6220      !
+6230      IF NUM(Kbd$)<58 AND NUM(Kbd$)>47 THEN
+6240        Ans=VAL(Kbd$)
+6250        IF Ans=9 AND B(9)=0 THEN !  QUIT THE PROGRAM
+6260          DISP "... PROGRAM STOPPED ...  Press RUN to start over."
+6270          STOP
+6280        END IF
+6290        IF B(Ans)=0 THEN Ans=-1   ! Do not exit for blank softkey
+6300      END IF
+6310      IF NUM(Kbd$)<107 AND NUM(Kbd$)>96 THEN
+6320        Ans=NUM(Kbd$)-87
+6330        IF B(Ans)=0 THEN Ans=-1   ! Do not exit for blank softkey
+6340      END IF
+6350      IF Ud AND Kbd$="V" THEN OUTPUT 2;"ˇV";
+6360      IF Ud AND Kbd$="^" THEN OUTPUT 2;"ˇ^";
+6370    END IF ! LEN(Kbd$)>1
+6380    ON KBD ALL GOSUB K2
+6390    RETURN
+6400  SUBEND !................... Keyques ....................................
+6410  !
+6420 Storemenuinfo: SUB Storemenuinfo(Calfile$)
+6430  !  Stores in present meas run's info from the SUB Initializevars
+6440  !   in RAM file MENUINFO.
+6450  !
+6460  !  Output:  Input vars are stored in RAM file MENUINFO for later
+6470  !            retrieval if COM gets wiped out.
+6480  !
+6490    OPTION BASE 1
+6500    COM /System/Spid$,Systemletter$,Connectors$,Operator$,Headident$,Headsign
+6510    COM /Flags/Tportflag,Adaptflag,Rezero,Powcal,INTEGER Debugflags
+6520    COM /Meascontrol/Numrepeats,Numconnects,Numphases
+6530    COM /Freqinfo/Freq(*),Numfreqs,Freqremeasured(*),Levels(*)
+6540    COM /Measdev/Sp,Meastype$,Devicedescript$(*),Devicenum$(*),Comment1$,Comment2$,Comment3$,Settings$(*)
+6550    ALLOCATE Str$(1)[10]
+6560    !
+6570    CAT "/6port/ramfile" TO Str$(*);NAMES,SELECT "MENUINFO",COUNT Nfiles
+6580    IF Nfiles=0 THEN
+6590      CREATE BDAT "/6port/ramfile/MENUINFO",49,168  ! Needs 49 recs for 801 freqs.
+6600      ASSIGN @Eof TO "/6port/ramfile/MENUINFO"
+6610      CONTROL @Eof,7;49,168    ! EOF pointer to last record,last byte.
+6620      ASSIGN @Eof TO *
+6630    END IF
+6640    ASSIGN @Out TO "/6port/ramfile/MENUINFO"
+6650    OUTPUT @Out,1;Sp,Numfreqs,Numrepeats,Numconnects,Numphases,Operator$,Calfile$
+6660    OUTPUT @Out,2;Tportflag,Adaptflag,Rezero,Powcal,Debugflags
+6670    OUTPUT @Out,3;Connectors$,Meastype$,Devicenum$(*),Headident$,Headsign
+6680    OUTPUT @Out,4;Devicedescript$(*)
+6690    OUTPUT @Out,5
+6700    OUTPUT @Out;Settings$(*)
+6710    OUTPUT @Out,10
+6720    OUTPUT @Out;Freq(*)
+6730    ASSIGN @Out TO *
+6740  SUBEND !................... Storemenuinfo ..............................
+6750  !
+6760 Setsysteminfo: SUB Setsysteminfo(Systemletter$,Connectors$)
+6770  ! Set system variables (COM block /System/), using tables of possible
+6780  !   values from the "/6PORT/SYSINFO" file.
+6790  !
+6800  ! Output:
+6810  !     Systemletter$[1], read from SYSINFO file, = 6-port system letter.
+6820  !     Connectors$[26]= type of connectors on 6-port
+6830  !
+6840    OPTION BASE 1
+6850    ALLOCATE D$(16)[4],A1$[160]
+6860    ASSIGN @Insysinfo TO "/6PORT/SYSINFO"   ! Open SYSINFO file
+6870  !
+6880  ! First record has system ID, system letter.
+6890  !
+6900    ENTER @Insysinfo,1;Spid$,Systemletter$,Numsidearms,Numheadsets,Ncalconn,Nmeasconn
+6910    A1$="00  10  /   N;01  15  /   7;02  22  /  14;03  28  / 3.5;04   42 /  2.92;05  62 /  2.4;06  90;10;11;12;13;14;15;16;"
+6920    READ D$(*)
+6930    DATA WR10,WR15,WR22,WR28,WR42,WR62,WR90,0,0,0
+6940    DATA N,7,14,3.5,2.92,2.4
+6950    CALL Keyques("Choose connectors to determine directory.",Ans,A1$,"1",0)
+6960    Connectors$=D$(Ans)
+6970    ASSIGN @Insysinfo TO *  ! Close SYSINFO file.
+6980  SUBEND !................... Setsysteminfo ..............................
+6990  !
+7000 Getsp: SUB Getsp(Meastype$,Sp)
+7010    ! Define the 6-port(s) to be used to measure or the device
+7020    !  direction.
+7030    !
+7040    ! Input: Meastype$[10]= device type.
+7050    !        Sp may also be defined on onput -- if so, operator has
+7060    !           opportunity to change it.
+7070    ! Output: Sp= 6-port to be used or device direction:
+7080    !            1-port or power:  =1 for port 1, =2 for port 2, =3 for
+7090    !                 2 devices at once, one on each port.
+7100    !            2-port: =1 for forward direction, =2 for reverse.
+7110    !
+7120    OPTION BASE 1
+7130    IF POS(Meastype$,"2") AND Sp=3 THEN Sp=0  ! Can't = 3 for a 2-port.
+7140    IF POS(Meastype$,"2") THEN        ! 2-port
+7150      CALL Keyques("Forward or reverse direction?",Sp,"00  Fwd;01  Rev;","1",0)
+7160    ELSE                     ! 1-port or power
+7170 !!!  CALL Keyques("Measure device on port 1 or 2 or do 2 devices at once (both)?",Sp,"00  1;01  2;02 Both;","1",0)
+7180      CALL Keyques("Measure device on port 1 or 2?",Sp,"00  1;01  2;","1",0)
+7190    END IF
+7200  SUBEND !................... Getsp ......................................
+7210  !
+7220 Getdevtype: SUB Getdevtype(Spid$,Sp,Meastype$,Numphases,Nonrecip)
+7230  ! Determine type of device being measured and set the # of phases measured
+7240  ! for the devices.
+7250  !
+7260  ! Input:  Spid$[20]= 6-port sytem ID.
+7270  !         Sp= which port, or direction of device:  1 or 2 for port 1
+7280  !             or 2 (or forward or reverse), 3 for 2 devices at once.
+7290  !             May= 0 if not yet defined.
+7300  !         Meastype$ may be defined on input -- if so, operator has
+7310  !           opportunity to change it.
+7320  ! Output: Meastype$[10]= type of device measured:
+7330  !           "1-port" or "1-portV" for 1-port fixed or variable;
+7340  !           "2-port", "2-portV", "2-portNR" or "2-portVNR" for 2-port
+7350  !              fixed, variable, non-reciprocal, or variable & non-recip.
+7360  !           "Thermistor" or "DryCal" for power thermistor or
+7370  !              dry calorimeter.
+7380  !          THIS VERSION ALLOWS CHOICE BETWEEN Thermistor & DryCal TO
+7390  !          Numphases - # of phases measured for the devices
+7400  !          WAVEGUIDE SYSTEMS ONLY.
+7410  !
+7420    OPTION BASE 1
+7430    !
+7440    ! FOR 8510, DEVICES MEASURED ARE 1-PORT OR 2-PORT.  POWER DEVICES ARE
+7450    !  MEASURED AS 1-PORTS, TO GET GAMMA MEAS FOR DIRECT COMPARISON SYSTEM
+7460    CALL Keyques("Measure 1-port, or 2-port ?",Typenum,"001-port;012-port;","1",0)
+7470    !
+7480    IF Typenum=1 OR Typenum=2 THEN    ! 1-port or 2-port
+7490    ! CALL Keyques("Is the device VARIABLE (has different settings that can be measured) ?",Vardev,"00  Yes;01  No;","R",0)
+7500    ! IF Typenum=2 THEN CALL Keyques("Is the device NON-RECIPROCAL (s12 does not equal s21) ?",Nonrecip,"00  Yes;01  No;","R",0)
+7510      IF Typenum=1 THEN Nonrecip=0
+7520      Meastype$=VAL$(Typenum)&"-port"
+7530      IF Vardev THEN Meastype$=Meastype$&"V"
+7540      IF Nonrecip THEN Meastype$=Meastype$&"NR"
+7550    END IF
+7560    !
+7570    IF Typenum=3 THEN    ! Power device
+7580      IF POS(Spid$,"WR") THEN   ! Add DryCal option for waveguide systems
+7590        CALL Keyques("Is the device a thermistor or dry calorimeter?",Powdev,"00Thermi';01Drycal';","1",0)
+7600        IF Powdev=1 THEN Meastype$="Thermistor"
+7610        IF Powdev=2 THEN Meastype$="DryCal"
+7620      ELSE                      ! Only thermistors for other systems
+7630        Meastype$="Thermistor"
+7640      END IF
+7650    END IF
+7660    IF POS(Meastype$,"2") AND Sp=3 THEN Sp=0  ! Need to set forward/reverse
+7670    !
+7680    !  Set the # of phases measured for the devices
+7690    IF POS(Meastype$,"2") THEN
+7700      Numphases=4                 ! 2-port device
+7710    ELSE
+7720      Numphases=1                 ! 1-port or power
+7730    END IF
+7740  SUBEND !................... Getdevtype .................................
+7750  !
+7760 Getdevdescript: SUB Getdevdescript(Sp,Devicedescript$(*),Devicenum$(*))
+7770  ! Enter device number, device description, reverse devices, or change to
+7780  ! new ones.
+7790  !
+7800  ! Input:  Sp= port # or direction of device:
+7810  !             for 1-port or power:  =1 for port 1, =2 for port 2, =3 for
+7820  !               2 devices one on each port.
+7830  !             for 2-port: =1 for forward direction, =2 for reverse.
+7840  !         Devicedescript$(*) and Devicenum$(*) may be defined on entry,
+7850  !             if so operator has chance to edit them.
+7860  ! Output: Devicedescript$(1)[80] has description of device if on port 1.
+7870  !             Devicedescript$(2)[80] has description of device on port 2.
+7880  !             (or forward in Devicedescript$(1), reverse in (2)).
+7890  !         Devicenum$(1)[6]= device ID, S/N, or number of device on port 1.
+7900  !             Devicenum$(2)[6]= device number for device on port 2.
+7910  !             (or forward in (1), reverse in (2)).
+7920  !
+7930    OPTION BASE 1
+7940    ALLOCATE Reo(2)
+7950    IF Sp=3 AND Devicedescript$(1)<>"" AND Devicedescript$(2)<>"" AND Devicenum$(1)<>"" AND Devicenum$(2)<>"" THEN
+7960      CALL Keyques("Reverse devices?",Ans,"00  Yes;01  No;","R",0)
+7970      IF Ans=1 THEN GOSUB Revdev
+7980    END IF
+7990    IF Ans=0 THEN
+8000      KEY LABELS OFF
+8010      IF Sp=1 OR Sp=3 THEN GOSUB Getdesc1
+8020      IF Sp=2 OR Sp=3 THEN GOSUB Getdesc2
+8030    END IF
+8040    SUBEXIT
+8050  !
+8060 Revdev: Reo(1)=2
+8070    Reo(2)=1
+8080    MAT REORDER Devicedescript$ BY Reo
+8090    MAT REORDER Devicenum$ BY Reo
+8100    RETURN
+8110  !
+8120 Getdesc1: !
+8130  ! Get description for device on port 1 (1-port or power), or device
+8140  !   in forward direction (2-port), and device number
+8150  !
+8160    IF Devicedescript$(1)<>"" THEN     ! Default whichever is non-null
+8170      OUTPUT KBD;Devicedescript$(1);CHR$(255);"H";
+8180    ELSE
+8190      IF Devicedescript$(2)<>"" THEN OUTPUT KBD;Devicedescript$(2);CHR$(255);"H";
+8200    END IF
+8210    IF Sp=3 THEN LINPUT "ENTER the DESCRIPTION of the device on PORT 1",Devicedescript$(1)
+8220    IF Sp=1 THEN LINPUT "ENTER the DESCRIPTION of the device",Devicedescript$(1)
+8230    IF Devicedescript$(1)="THRU" THEN Devicedescript$(1)="Thru"   ! Device description THRU is reserved for a re-zero
+8240    IF Devicedescript$(1)="ADAPTER" THEN Devicedescript$(1)="Adapter"   ! Device description ADAPTER is reserved for adding an adapter
+8250      !
+8260    IF Devicenum$(1)<>"" THEN      ! Default whichever is non-null
+8270      OUTPUT KBD;Devicenum$(1);CHR$(255);"H";
+8280    ELSE
+8290      IF Devicenum$(2)<>"" THEN OUTPUT KBD;Devicenum$(2);CHR$(255);"H";
+8300    END IF
+8310    IF Sp=3 THEN LINPUT "ENTER the NIST NUMBER of the device on PORT 1",Devicenum$(1)
+8320    IF Sp=1 THEN LINPUT "ENTER the NIST NUMBER of the device",Devicenum$(1)
+8330    RETURN
+8340    !
+8350 Getdesc2: !
+8360    ! Get description for device on port 2 (1-port or power), or device
+8370    !   in reverse direction (2-port), and device number
+8380    !
+8390    IF Devicedescript$(2)<>"" THEN     ! Default whichever is non-null
+8400      OUTPUT KBD;Devicedescript$(2);CHR$(255);"H";
+8410    ELSE
+8420      IF Devicedescript$(1)<>"" THEN OUTPUT KBD;Devicedescript$(1);CHR$(255);"H";
+8430    END IF
+8440    IF Sp=3 THEN LINPUT "ENTER the DESCRIPTION of the device on PORT 2",Devicedescript$(2)
+8450    IF Sp=2 THEN LINPUT "ENTER the DESCRIPTION of the device",Devicedescript$(2)
+8460    IF Devicedescript$(2)="THRU" THEN Devicedescript$(2)="Thru"   ! Device description THRU is reserved for a re-zero
+8470    IF Devicedescript$(2)="ADAPTER" THEN Devicedescript$(2)="Adapter"   ! Device description ADAPTER is reserved for adding an adapter
+8480      !
+8490    IF Devicenum$(2)<>"" THEN     ! Default whichever is non-null
+8500      OUTPUT KBD;Devicenum$(2);CHR$(255);"H";
+8510    ELSE
+8520      IF Devicenum$(1)<>"" THEN OUTPUT KBD;Devicenum$(1);CHR$(255);"H";
+8530    END IF
+8540    IF Sp=3 THEN LINPUT "ENTER the NIST NUMBER of the device on PORT 2",Devicenum$(2)
+8550    IF Sp=2 THEN LINPUT "ENTER the NIST NUMBER of the device",Devicenum$(2)
+8560    RETURN
+8570  SUBEND !................... Getdevdescript .............................
+8580 Vardev: SUB Vardev(Sp,Settings$(*))
+8590  ! Sets settings$(*) for variable devices.
+8600  !
+8610  ! Input:
+8620  !        Sp= for 1-ports and power:  1 for port 1, 2 for port 2, or
+8630  !            3 for 2 devices at once, one on each port.
+8640  !            for 2-ports:  1 for forward direction, 2 for reverse.
+8650  !        Numrepeats= number of device settings.
+8660  !
+8670  ! Output:
+8680  !         Settings$(*,1)= description of device settings for device,
+8690  !              if variable, on port 1 (or forward direction).
+8700  !              Settings$(*,2)= description for device, if variable,
+8710  !              on port 2 (or reverse direction).
+8720  !
+8730    OPTION BASE 1
+8740    COM /Meascontrol/Numrepeats,Numconnects,Numphases
+8750    KEY LABELS OFF
+8760    !
+8770    !   Define # of repeat scans or # of device settings, if not already
+8780    !     in memory
+8790    !
+8800    REDIM Settings$(Numrepeats,2)      ! Setting descriptions.
+8810    IF Sp=3 THEN Numdevices=2       ! Measuring 2 devices at once.
+8820    IF Sp<>3 THEN Numdevices=1      ! Only 1 device on port # Sp, or 2-port
+8830    CLEAR SCREEN
+8840    FOR Dev=1 TO Numdevices        ! Enter settings for device(s)
+8850      Whichport=Sp*(Sp=1 OR Sp=2)+Dev*(Sp=3)      ! Array place for device
+8860      IF Numdevices=2 THEN OUTPUT 1;"SET DEVICE ON PORT ";Whichport;" TO : ";
+8870      IF Numdevices=1 THEN OUTPUT 1;"SET DEVICE TO : ";
+8880      FOR Set=1 TO Numrepeats     ! Enter setting descriptions.
+8890        IF Numdevices=2 THEN DISP "Enter setting description (e.g., 10 dB) for setting # ";Set;"--> DEVICE ON PORT ";Whichport;
+8900        IF Numdevices=1 THEN DISP "Enter setting description (e.g., 10 dB) for setting # ";Set;
+8910        IF (Dev=1 AND Settings$(Set,1)<>"") OR (Dev=2 AND Settings$(Set,2)="") THEN
+8920          OUTPUT KBD;Settings$(Set,1);CHR$(255);"H";     ! Default port 1
+8930        ELSE        ! Output port 2 as default if port 1's were null
+8940          OUTPUT KBD;Settings$(Set,2);CHR$(255);"H";     ! Default port 2
+8950        END IF
+8960        LINPUT "",Settings$(Set,Whichport)
+8970        OUTPUT 1;Settings$(Set,Whichport);"  ";
+8980      NEXT Set
+8990      OUTPUT 1;""
+9000    NEXT Dev
+9010  SUBEND !................... Vardev .....................................
+9020 Flip: SUB Flip(Nu)
+9030    ! For SUB Sessioninfo, flips between "Yes" or "No" answer for
+9040    !  item # 15,16.
+9050    Nu=Nu+1
+9060    IF Nu=2 THEN Nu=0
+9070  SUBEND !................... Flip .......................................
+9080  !
+9090 Freq8536: SUB Freq8536(Freq(*),Numfreqs,Fstart,Fstop,@Ana)
+9100   ! Get start, stop, list of freqs from 8510.
+9110   !
+9120   ! Input: @Ana - io path to network analizer.
+9130   !
+9140   ! Output:  Numfreqs - number of freqs to be measured
+9150   !          Freq(Numfreqs)= array of freqs to be measured in GHz
+9160   !                          (from 8510)
+9170   !          Fstart - Starting frequency (from 8510)
+9180   !          Fstop - Ending frequency (from 8510)
+9190   !
+9200    OPTION BASE 1
+9210    REDIM Freq(801) !Start at original size in case Freq(*) still defined
+9220                    ! in COM from the previous calibration run.
+9230   !
+9240    INTEGER N
+9250    OUTPUT @Ana;"FORM:DATA REAL,64;:SENS:X:VAL?;"
+9260    ASSIGN @Ana;FORMAT OFF
+9270    ENTER @Ana USING "%,A,D";Preamble$,Digit
+9280    ENTER @Ana USING "%,"&VAL$(Digit)&"D";N
+9290    Numfreqs=N/8
+9300    REDIM Freq(Numfreqs)
+9310    ASSIGN @Ana;FORMAT OFF
+9320    ENTER @Ana;Freq(*)
+9330    MAT Freq=Freq/(10^9)
+9340    !
+9350    ASSIGN @Ana;FORMAT ON
+9360    ENTER @Ana;Null_string$  ! FORMAT ON STATEMENT GENERATES PNA RESPONSE; ENTER CLEARS
+9370    !
+9380    OUTPUT @Ana;"FORM:DATA ASCII"
+9390    !
+9400    OUTPUT @Ana;"SENS:FREQ:STAR?"
+9410    ENTER @Ana;Fstart
+9420    OUTPUT @Ana;"SENS:FREQ:STOP?"
+9430    ENTER @Ana;Fstop
+9440  SUBEND !................... Freq8536 ...................................
+9450 Dircal: SUB Dircal(Dircal$,Disc$,Connectors$)
+9460    OPTION BASE 1
+9470    ALLOCATE D$(13)[4]
+9480    Disc$=":,700,0"
+9490    READ D$(*)
+9500    DATA N,7,14,3.5,2.92,2.4
+9510    DATA 10,15,22,28,42,62,90
+9520    REPEAT
+9530      I=1+I
+9540      F=POS(Connectors$,D$(I))
+9550    UNTIL F
+9560    Dircal$=D$(I)&"/"
+9570  SUBEND !................... Dircal .....................................
+9580  !
+9590  !*****************************************
+9600  SUB Anal(@Anal,Systemletter$,First,Averon)
+9610  !*****************************************
+9620  !
+9630 Anal: OPTION BASE 1
+9640  !
+9650  ! Initialize the network analyzer, return Systemletter$.
+9660  !
+9670  ! Outputs: Systemletter$ - L - Agilent PNA
+9680  !                  @Anal - assigned to 716 (PNA)
+9690  !
+9700    INTEGER Comma_pos,Delta_pos
+9710    DIM Model_no$[40],Vna_id$[80]
+9720    !
+9730    IF First THEN
+9740      ASSIGN @Anal TO 716
+9750      CLEAR @Anal
+9760      !
+9770      OUTPUT @Anal;"*IDN?"
+9780      ENTER @Anal;Vna_id$
+9790      !
+9800      !PARSE VNA_ID$ TO FIND THE PNA MODEL No, ASSUMING THE
+9810      !PNA MODEL No IS LISTED BETWEEN THE FIRST 2 COMMAS OF VNA_ID$
+9820      Comma_pos=POS(Vna_id$,",")
+9830      Delta_pos=POS(Vna_id$[Comma_pos+1],",")-1
+9840      !
+9850      Model_no$=Vna_id$[Comma_pos+1,Comma_pos+Delta_pos]
+9860      Model_no$=TRIM$(Model_no$)
+9870      !
+9880      Systemletter$="L"
+9890    END IF
+9900    Averon=0
+9910    First=First+1
+9920    !
+9930    !Initialize the VNA:
+9940    !
+9950    CALL Set_sweep_mode(@Anal,"CONTINUOUS")
+9960    CALL Set_trig_source(@Anal,"IMMEDIATE")
+9970    !
+9980    OUTPUT @Anal;":CALCULATE:OFFSET:PHASE 0"
+9990    OUTPUT @Anal;":CALCULATE:CORRECTION:EDELAY:TIME 0"
+10000   !
+10010   OUTPUT @Anal;":SENSE:AVERAGE:STATE OFF"
+10020 ! OUTPUT @Anal;":SENSE:AVERAGE:COUNT 4"                 ! AVERAGE:COUNT -> NO OF SWEEPS
+10030   !
+10040   OUTPUT @Anal;":SENSE:BANDWIDTH:RESOLUTION 10HZ"
+10050   !
+10060   OUTPUT @Anal;":SENSE:CORRECTION:INTERPOLATE:STATE OFF"
+10070   !
+10080 SUBEND !................... Anal .......................................
+10090 !
+10100 !*********************************************************
+10110 SUB Xt(@Ana,Numfreqs,Connect,Sp,Meastype$,Sparam_list$(*))
+10120 !*********************************************************
+10130 !
+10140 Xt: OPTION BASE 1
+10150   ! Transfer data from the VNA to array D8536.
+10160   !
+10170   ! Inputs: @Ana - path to network analyzer.
+10180   !         Numfreqs - Number of frequencies.
+10190   !         Connect = which connect is being measured
+10200   !         Sp= which port to measure on (port 1 (forward) or 2 (reverse))
+10210   !         Meastype$= type of device:  1-port or 2-port
+10220   !
+10230   ! Outputs: D8536(*) - Array of output data.
+10240   !
+10250   DEG
+10260   COM /N/Nonrecip,D8536(*),Averon,First,Calset
+10270   !
+10280   INTEGER Avg_count
+10290   INTEGER N,Temp
+10300   COMPLEX C1,C2,Ca
+10310   !
+10320   DIM Active_spar$[3],Active_trace$[1]
+10330   DIM Errormessage$[50]
+10340   !
+10350   IF POS(Meastype$,"1") THEN    ! 1-port
+10360     SELECT Sp
+10370     CASE 1
+10380       Startvar=1
+10390       Stopvar=1
+10400     CASE 2
+10410       Startvar=4
+10420       Stopvar=4
+10430     END SELECT ! Sp
+10440   END IF
+10450   !
+10460   IF POS(Meastype$,"2") THEN    ! 2-port
+10470     Startvar=1                  ! S11,S12,S21,S22
+10480     Stopvar=4
+10490   END IF
+10500   !
+10510   !Clear all TRACES, i.e. turn TRACE display OFF
+10520   CALL Clear_traces(@Ana,Meastype$,Sp,Sparam_list$(*))
+10530   !
+10540   CALL Set_sweep_mode(@Ana,"SINGLE")
+10550   CALL Set_trig_source(@Ana,"MANUAL")
+10560   !
+10570 ! CALL Query_avgs(@Ana,Avg_count)
+10580   !
+10590   KEY LABELS OFF
+10600   !
+10610   FOR I=Startvar TO Stopvar
+10620     !
+10630     Active_spar$=Sparam_list$(I,1)[1,3]
+10640     Active_trace$=Sparam_list$(I,3)[1,1]
+10650     !
+10660     OUTPUT @Ana;":CALCULATE:PARAMETER:SELECT "&Sparam_list$(I,2)
+10670     !
+10680     OUTPUT @Ana;":DISPLAY:WINDOW:TRACE"&Active_trace$&":STATE ON"
+10690     CALL Select_format(@Ana,Active_spar$)
+10700     OUTPUT @Ana;":DISPLAY:WINDOW:TRACE"&Active_trace$&":Y:SCALE:AUTO"
+10710     WAIT .5
+10720     !
+10730     DISP "Requesting the VNA to measure ",Active_spar$,"Connect No: "&VAL$(Connect)
+10740   ! CALL Reset_avgs(@Ana)
+10750   ! FOR K=1 TO Avg_count
+10760     CALL Trigger_vna(@Ana)
+10770     CALL Opc_query(@Ana)
+10780     OUTPUT @Ana;":DISPLAY:WINDOW:TRACE"&Active_trace$&":Y:SCALE:AUTO"
+10790   ! NEXT K ! Avg_count
+10800     !
+10810     OUTPUT @Ana;":FORMAT:DATA REAL,64"
+10820     OUTPUT @Ana;":CALCULATE:DATA? SDATA"
+10830     ENTER @Ana USING "%,A,D";Preamble$,Digit
+10840     ENTER @Ana USING "%,"&VAL$(Digit)&"D";N
+10850     !
+10860     Nfreq=N/16
+10870     ALLOCATE Corr_data(2*Nfreq)
+10880     ASSIGN @Ana;FORMAT OFF
+10890     IF N<>0 THEN
+10900       ENTER @Ana;Corr_data(*)
+10910       FOR J=1 TO Numfreqs
+10920         X=Corr_data(2*J-1)
+10930         Y=Corr_data(2*J)
+10940         IF X=0 THEN X=.00000001
+10950         CALL Mp(X,Y,M,P)
+10960         IF I=1 OR I=4 THEN D8536(Connect,J,2*I)=M
+10970         IF I=2 OR I=3 THEN D8536(Connect,J,2*I)=-20*LGT(M)
+10980         D8536(Connect,J,2*I+1)=P
+10990       NEXT J
+11000     END IF !N<>0
+11010     ASSIGN @Ana;FORMAT ON             !FORMAT ON generates PNA response;
+11020     ENTER @Ana;Null_string$           !ENTER clears the PNA output buffer
+11030     OUTPUT @Ana;":FORMAT:DATA ASCII"
+11040     DEALLOCATE Corr_data(*)
+11050     !
+11060     OUTPUT @Ana;":DISPLAY:WINDOW:TRACE"&Sparam_list$(I,3)[1,1]&":STATE OFF"
+11070     !
+11080   NEXT I !Startvar TO Stopvar
+11090   !
+11100   KEY LABELS ON
+11110   DISP " "
+11120   !
+11130   IF Nonrecip=0 AND POS(Meastype$,"2") THEN   ! 2-port average S12, S21
+11140     FOR J=1 TO Numfreqs
+11150       Avgm=(D8536(Connect,J,4)+D8536(Connect,J,6))/2    ! (|S12|+|S21|)/2
+11160       ! The following determines average phase by averaging 2 unity vectors
+11170       A1=D8536(Connect,J,5)                  ! Arg S12
+11180       A2=D8536(Connect,J,7)                  ! Arg S21
+11190       C1=CMPLX(COS(A1),SIN(A1))              ! Form complex no
+11200       C2=CMPLX(COS(A2),SIN(A2))              ! "
+11210       Ca=(C1+C2)/2                           ! Average unity vectors
+11220       Avgp=ARG(Ca)                           ! Average phase
+11230       D8536(Connect,J,4)=Avgm
+11240       D8536(Connect,J,6)=Avgm
+11250       D8536(Connect,J,5)=Avgp
+11260       D8536(Connect,J,7)=Avgp
+11270     NEXT J
+11280   END IF !Nonrecip=0
+11290   !
+11300 ! DEALLOCATE D$(*)
+11310   LOCAL @Ana
+11320   !
+11330 SUBEND !................... Xt .........................................
+11340 !
+11350 Avg1port2: SUB Avg1port2(Vardevice,Settings$(*),Port,D8536(*),Stddev(*),Avgs(*))
+11360 ! Compute averages & standard deviations for 1-port device on port Port.
+11370 !  Averaging done on magnitude & phase seperately.
+11380 !
+11390 ! INPUT: Vardevice is non-zero if device is variable.
+11400 !        Settings$(*) describes the settings measured if device variable.
+11410 !        Port= 1 or 2 for results of device on 6-port 1 or 2.
+11420 !        D8536(*)= data for every connect, frequency.
+11430 !
+11440 ! OUTPUT:  Averages for each freq, and std devs, are printed.
+11450 !
+11460   OPTION BASE 1
+11470   DEG
+11480   COM /Meascontrol/Numrepeats,Numconnects,Numphases
+11490   COM /Freqinfo/Freq(*),Numfreqs,Freqremeasured(*),Levels(*)
+11500   !
+11510   ! LOCAL VARS:  Connavg(*)= connect averages for a fixed device.
+11520   !              Diffsum(*)= used to get standard deviations.
+11530   !              Stddev(*)= standard deviations.
+11540   !              Avgs(*)= final averages.
+11550   !
+11560   ALLOCATE Diffsum(Numfreqs,Numrepeats,2),Connavg(Numfreqs,Numconnects,2)
+11570   MAT Stddev=(0)
+11580   MAT Avgs=(0)
+11590   !
+11600   FOR Eafreq=1 TO Numfreqs     ! Get final averages for each frequency
+11610     IF NOT Vardevice THEN      ! Fixed device:  1 average per freq
+11620   ! For a fixed device, to get the final average for a freq:  average
+11630   !     all repeats to get the connect average, then average all connect
+11640   !     averages for the final average.
+11650   !
+11660       FOR Eaconnect=1 TO Numconnects   ! Each connect
+11670         ! Final avg= avg of all connects
+11680         Avgs(Eafreq,1,1)=Avgs(Eafreq,1,1)+D8536(Eaconnect,Eafreq,8)/Numconnects       ! Magnitude avg
+11690         Avgs(Eafreq,1,2)=Avgs(Eafreq,1,2)+D8536(Eaconnect,Eafreq,9)/Numconnects       ! Arg avg
+11700       NEXT Eaconnect
+11710      !
+11720       FOR Eaconnect=1 TO Numconnects ! Compute SUM(ea connect-final avg)^2
+11730         Diffsum(Eafreq,1,1)=Diffsum(Eafreq,1,1)+(D8536(Eaconnect,Eafreq,8)-Avgs(Eafreq,1,1))^2     ! Magnitudes
+11740         Diffsum(Eafreq,1,2)=Diffsum(Eafreq,1,2)+(D8536(Eaconnect,Eafreq,9)-Avgs(Eafreq,1,2))^2     ! Args
+11750       NEXT Eaconnect
+11760      !
+11770      ! Final std dev= SQR[(1/Numconnects-1)*SUM(ea connect- final avg)^2]
+11780       IF Numconnects>1 THEN Stddev(Eafreq,1,1)=SQR(Diffsum(Eafreq,1,1)/(Numconnects-1))       ! Std dev magnitudes
+11790       IF Numconnects>1 THEN Stddev(Eafreq,1,2)=SQR(Diffsum(Eafreq,1,2)/(Numconnects-1))       ! Std dev args
+11800     END IF
+11810     !
+11820     IF Vardevice THEN     ! Get avgs for every setting (repeat) for a freq
+11830   ! For a variable device, to get the final average for all settings for
+11840   !     a frequency, average all connects for each setting to get the
+11850   !     final average.
+11860   !     For a variable device, Numrepeats = number of settings measured.
+11870   !
+11880       FOR Earepeat=1 TO Numrepeats        ! For each setting
+11890         FOR Eaconnect=1 TO Numconnects    ! For each connect
+11900           Avgs(Eafreq,Earepeat,1)=Avgs(Eafreq,Earepeat,1)+(D8536(Eaconnect,Eafreq,Port+6))/Numconnects    ! Avg ea setting = avg all connects
+11910           Avgs(Eafreq,Earepeat,2)=Avgs(Eafreq,Earepeat,2)+D8536(Eaconnect,Eafreq,Port+7)/Numconnects ! Avg ea setting = avg all connects
+11920         NEXT Eaconnect
+11930       !
+11940         FOR Eaconnect=1 TO Numconnects
+11950           ! Compute SUM (each setting- final setting average)^2
+11960           Diffsum(Eafreq,Earepeat,1)=Diffsum(Eafreq,Earepeat,1)+(Avgs(Eafreq,Earepeat,1)-D8536(Eaconnect,Eafreq,Port+6))^2
+11970           Diffsum(Eafreq,Earepeat,2)=Diffsum(Eafreq,Earepeat,2)+(Avgs(Eafreq,Earepeat,2)-D8536(Eaconnect,Eafreq,Port+7))^2
+11980         NEXT Eaconnect
+11990        ! Compute SQR[(1/Numconnects-1)*SUM(each setting-final avg)^2]
+12000         IF Numconnects>1 THEN Stddev(Eafreq,Earepeat,1)=SQR(Diffsum(Eafreq,Earepeat,1)/(Numconnects-1))    ! Std dev magnitudes
+12010         IF Numconnects>1 THEN Stddev(Eafreq,Earepeat,2)=SQR(Diffsum(Eafreq,Earepeat,2)/(Numconnects-1))    ! Std dev magnitudes
+12020       NEXT Earepeat   ! Next setting
+12030     END IF
+12040   NEXT Eafreq
+12050   !
+12060   ! Print out final avgs & std devs
+12070   CALL Printavg1port(Vardevice,Settings$(*),Port,Avgs(*),Stddev(*))
+12080   DEALLOCATE Diffsum(*),Connavg(*)
+12090 SUBEND !................... Avg1port2 ..................................
+12100 !
+12110 Avg2port: SUB Avg2port(Vardevice,Nonrecip,Settings$(*),Port,D8536(*),Stddev(*),Avgs(*))
+12120 ! Compute averages & standard deviations for 2-port device.
+12130 !  Averaging done on magnitude & phase seperately.
+12140 !
+12150 ! INPUT: Vardevice is non-zero if device is variable.
+12160 !        Nonrecip is non-zero if device is non-reciprocal
+12170 !        Settings$(*) describes the settings measured if device variable
+12180 !        Port= 1 or 2 for results of device on in direction 1 (forward)
+12190 !          or 2 (reverse)
+12200 !        Residuals(*)= residuals from calculations for every connect,
+12210 !           frequency, and repeat/setting.  Residuals(*,*,*,10)=
+12220 !           power meter std devs.
+12230 !        D8536(*)= results from calculations for every connect,
+12240 !            freq, and repeat/setting.
+12250 !
+12260 ! OUTPUT:  Averages for each freq, and std devs, are printed.  |S12| and
+12270 !          |S21| are in dB for averaging & uncerts.
+12280 !
+12290   OPTION BASE 1
+12300   DEG
+12310   COM /Meascontrol/Numrepeats,Numconnects,Numphases
+12320   COM /Freqinfo/Freq(*),Numfreqs,Freqremeasured(*),Levels(*)
+12330   !
+12340   ! LOCAL VARS:  Connavg(*)= connect averages for a fixed device.
+12350   !              Diffsum(*)= used to get standard deviations.
+12360   !              Resid(*)= the max circle residual from Residuals(*),
+12370   !                   for port Port.
+12380   !              Stddev(*)= standard deviations.
+12390   !              Avgs(*)= final averages.
+12400   !
+12410   ALLOCATE Resid(Numfreqs,Numrepeats)
+12420   ALLOCATE Diffsum(Numfreqs,Numrepeats,8),Connavg(Numfreqs,Numconnects,8)
+12430   !
+12440   MAT Avgs=(0)
+12450   MAT Stddev=(0)
+12460   FOR Eafreq=1 TO Numfreqs     ! Get final averages for each frequency
+12470     IF NOT Vardevice THEN      ! Fixed device:  1 average per freq
+12480   ! For a fixed device, to get the final average for a freq:  average
+12490   !     all repeats to get the connect average, then average all connect
+12500   !     averages for the final average.
+12510   !
+12520       FOR Eaconnect=1 TO Numconnects   ! Each connect
+12530         Col=1
+12540         FOR Var=2 TO 9      ! Each Sij
+12550           Connavg(Eafreq,Eaconnect,Col)=Connavg(Eafreq,Eaconnect,Col)+(D8536(Eaconnect,Eafreq,Var))/Numrepeats
+12560           Col=Col+1
+12570         NEXT Var
+12580         ! Final avg= avg of all connects
+12590         FOR Var=1 TO 8     ! Sij, magnitude & phase
+12600           Avgs(Eafreq,1,Var)=Avgs(Eafreq,1,Var)+Connavg(Eafreq,Eaconnect,Var)/Numconnects
+12610         NEXT Var
+12620       NEXT Eaconnect
+12630      !
+12640       FOR Eaconnect=1 TO Numconnects ! Compute SUM(ea connect-final avg)^2
+12650         FOR Var=1 TO 8   ! Sij, magnitudes & phases
+12660           Diffsum(Eafreq,1,Var)=Diffsum(Eafreq,1,Var)+(Connavg(Eafreq,Eaconnect,Var)-Avgs(Eafreq,1,Var))^2
+12670         NEXT Var
+12680       NEXT Eaconnect
+12690      !
+12700      ! Final std dev= SQR[(1/Numconnects-1)*SUM(ea connect- final avg)^2]
+12710       IF Numconnects>1 THEN
+12720         FOR Var=1 TO 8
+12730           Stddev(Eafreq,1,Var)=SQR(Diffsum(Eafreq,1,Var)/(Numconnects-1))
+12740         NEXT Var
+12750       END IF
+12760     END IF
+12770     !****************************************************
+12780     IF Vardevice THEN     ! Get avgs for every setting (repeat) for a freq
+12790   ! For a variable device, to get the final average for all settings for
+12800   !     a frequency, average all connects for each setting to get the
+12810   !     final average.
+12820   !     For a variable device, Numrepeats = number of settings measured.
+12830   !
+12840       FOR Earepeat=1 TO Numrepeats        ! For each setting
+12850         FOR Eaconnect=1 TO Numconnects    ! For each connect
+12860           Col=1
+12870           FOR Var=2 TO 9    ! Each Sij
+12880             Avgs(Eafreq,Earepeat,Col)=Avgs(Eafreq,Earepeat,Col)+(D8536(Eaconnect,Eafreq,Var))/Numconnects
+12890             Col=Col+1
+12900           NEXT Var
+12910         NEXT Eaconnect
+12920       !
+12930         FOR Eaconnect=1 TO Numconnects
+12940           Col=1
+12950           ! Compute SUM (each setting- final setting average)^2
+12960           FOR Var=2 TO 9    ! Each Sij
+12970             Diffsum(Eafreq,Earepeat,Col)=Diffsum(Eafreq,Earepeat,Col)+(Avgs(Eafreq,Earepeat,Col)-D8536(Eaconnect,Eafreq,Var))^2
+12980             Col=Col+1
+12990           NEXT Var
+13000         NEXT Eaconnect
+13010        ! Compute SQR[(1/Numconnects-1)*SUM(each setting-final avg)^2]
+13020         IF Numconnects>1 THEN
+13030           FOR Var=1 TO 8  ! Sij, magnitude & phase
+13040             Stddev(Eafreq,Earepeat,Var)=SQR(Diffsum(Eafreq,Earepeat,Var)/(Numconnects-1))
+13050           NEXT Var
+13060         END IF
+13070       NEXT Earepeat   ! Next setting
+13080     END IF
+13090   NEXT Eafreq
+13100   !
+13110   ! Print out final avgs & std devs
+13120   CALL Printavg2port(Vardevice,Nonrecip,Settings$(*),Port,Avgs(*),Stddev(*))
+13130   DEALLOCATE Resid(*),Diffsum(*),Connavg(*)
+13140 SUBEND !................... Avg2port ...................................
+13150 Mp: SUB Mp(X,Y,M,P)  ! Compute magnitude and phase from real and imaginary                              parts.
+13160 !
+13170 ! Inputs: X - real part of rectangular component of vector.
+13180 !         Y - imaginary part of rectangular component of vector.
+13190 !
+13200 ! Outputs: M - magnitude of vector.
+13210 !          P - phase angle of vector.
+13220 !
+13230   DEG
+13240   COMPLEX S
+13250   S=CMPLX(X,Y)
+13260   M=ABS(S)
+13270   P=ARG(S)
+13280 SUBEND !................... Mp .........................................
+13290 !
+13300 State: SUB State(Lr$,@Anal)! Learn or recall state of 8510
+13310 !
+13320 ! Input: Lr$ - L - Learn state of analyzer
+13330 !              R - Recall state of analyzer
+13340 !
+13350 ! Output: Memory 7 of analyzer
+13360 !
+13370   OPTION BASE 1
+13380   COM /N/Nonrecip,D8536(*),Averon,First,Calset
+13390   DIM Errormessage$[50]
+13400   IF Lr$="L" THEN ! Save state in save/recall to file Measlp.sta
+13410     OUTPUT @Anal;"MMEM:STOR:STAT 'Measlp.sta'"
+13420     OUTPUT @Anal;"CALC:TRAN:TIME:STAT OFF"  ! Freq domain if not there already
+13430   END IF
+13440   IF Lr$="R" THEN  !  Recall state from save/recall register 7
+13450 ! If Pwrlevel is different from Pwrlevel during cal then problems occur
+13460 ! The calibration will be turned off when recall instru state is executed.
+13470 ! The following was added to prevent the cal from being turned off when Pwrlevel
+13480 ! is different from cal Pwrlevel user has selected calset=present setting.
+13490     IF Calset=0 THEN SUBEXIT
+13500     OUTPUT @Anal;"MMEM:LOAD:STAT 'Measlp.sta'"
+13510     WAIT 5
+13520     OUTPUT @Anal;"SYST:ERR?"
+13530     ENTER @Anal;Errormessage$
+13540     DISP Errormessage$
+13550     IF POS(Errormessage$,",") THEN Errornum=VAL(Errormessage$[1,2])
+13560     IF Errornum THEN
+13570       IF Errornum=140 THEN
+13580         DISP "Wait for 8510 to sweep."
+13590       ELSE
+13600         OUTPUT 1;"Error ";Errornum;".  Please look in section CAUTION/TELL MESSAGES of HP8510C Network Analyzer - Keyword Dictionary.  Then press CONTINUE."
+13610         PAUSE
+13620       END IF
+13630     END IF
+13640   END IF
+13650 SUBEND !................... State ......................................
+13660 !
+13670 Setana: SUB Setana(@Ana,Calset)
+13680 ! Set network analyzer to work with specifed calibration.
+13690 !
+13700 ! Inputs: @Ana - path to network analyzer.
+13710 !         Calset - One of stored calibrations in 8510
+13720 !
+13730 ! Outputs: Network analyzer operating with proper calibration.
+13740 !
+13750   !
+13760   SELECT Calset
+13770   CASE 1
+13780     OUTPUT @Ana;":CALCULATE:PARAMETER:SELECT 'CH1_S11_1'"
+13790 !   OUTPUT @Ana;":DISPLAY:WINDOW:TRACE1:FEED 'CH1_S11_1'"
+13800     OUTPUT @Ana;":DISPLAY:WINDOW:TRACE1:STATE ON"
+13810   CASE 2
+13820     OUTPUT @Ana;":CALCULATE:PARAMETER:SELECT 'CH1_S22_2'"
+13830 !   OUTPUT @Ana;":DISPLAY:WINDOW:TRACE2:FEED 'CH1_S22_2'"
+13840     OUTPUT @Ana;":DISPLAY:WINDOW:TRACE2:STATE ON"
+13850   END SELECT !Calset
+13860   !
+13870 SUBEND !................... Setana .....................................
+13880 Printpageheader: SUB Printpageheader(Port,Meastime$,Measfile$(*),Calset,Rev$)
+13890   !  Print page header info for a measurement.
+13900   !
+13910   ! INPUT:  Port= which port or direction to print device info for,1 or 2.
+13920   !         Meastime$= time of the measurement.
+13930   !         Measfile$(2)= name of the measurement files, Measfile$(Port)
+13940   !             for the device on port or in direction Port.
+13950   !
+13960   ! OUTPUT: Page header for measurement results for device on port or in
+13970   !         direction Port has been printed.
+13980   !
+13990   OPTION BASE 1
+14000   COM /Prt/@Prt,Prt
+14010   COM /System/Spid$,Systemletter$,Connectors$,Operator$,Headident$,Headsign
+14020   COM /Freqinfo/Freq(*),Numfreqs,Freqremeasured(*),Levels(*)
+14030   COM /Files/Calfile$,Caldirectory$,Caldisc$,Powerfile$,Powerdirectory$,Powerdisc$
+14040   COM /Meascontrol/Numrepeats,Numconnects,Numphases
+14050   COM /Flags/Tportflag,Adaptflag,Rezero,Powcal,INTEGER Debugflags
+14060   COM /Measdev/Sp,Meastype$,Devicedescript$(*),Devicenum$(*),Comment1$,Comment2$,Comment3$,Settings$(*)
+14070   !
+14080 ! STATUS @Prt,3;A
+14090 ! IF A>8 THEN OUTPUT @Prt USING "#,K";CHR$(27)&"&n47c99d71e14f28g56h113i99j71k14l28m56n113O"        ! /
+14100 ! IF A>8 THEN OUTPUT @Prt USING "#,K";CHR$(27)&"&n92c113d56e28f14g71h99i113j56k28l14m71n99O"        ! \
+14110   !
+14120 ! IF NOT BIT(Debugflags,1) THEN OUTPUT @Prt USING "K,K,K,/";"/\/\/\/\/\/\/\/\                SYSTEM ";Spid$;"                 /\/\/\/\/\/\/\/\"
+14130 ! IF Powcal THEN
+14140 !   OUTPUT @Prt;""
+14150 !   OUTPUT @Prt USING "K,/";"/\/\     RESULTS FOR STANDARD USED TO CALIBRATE FOR POWER       /\/\"
+14160 ! END IF
+14170   !
+14180 ! IF A>8 THEN OUTPUT @Prt;CHR$(27)&"&n47C";CHR$(27)&"&n92C"   ! Clear redefined chars / & \
+14190   !
+14200   OUTPUT @Prt;"DATE = ";DATE$(TIMEDATE)
+14210   OUTPUT @Prt;"TIME = ";Meastime$
+14220   OUTPUT @Prt;"DEVICE = ";Devicedescript$(Port)
+14230   OUTPUT @Prt;"NIST ID = ";Devicenum$(Port)           ! Device ID
+14240   OUTPUT @Prt;"MEASUREMENT TYPE = ";Meastype$
+14250   IF POS(Meastype$,"NR") THEN OUTPUT @Prt;"Non reciprocal Device"
+14260   IF NOT POS(Meastype$,"NR") THEN OUTPUT @Prt;"Reciprocal Device"
+14270   OUTPUT @Prt;"Program revision ";Rev$
+14280   IF NOT POS(Meastype$,"2") THEN OUTPUT @Prt;" ON PORT ";Port
+14290   IF POS(Meastype$,"2") AND Port=1 THEN OUTPUT @Prt;DATE$(TIMEDATE),Meastime$," in FORWARD direction"
+14300   IF POS(Meastype$,"2") AND Port=2 THEN OUTPUT @Prt;DATE$(TIMEDATE),Meastime$," in REVERSE direction"
+14310   OUTPUT @Prt;"CONNECTS = ";Numconnects
+14320   OUTPUT @Prt;"CONNECTOR = ";Connectors$
+14330   OUTPUT @Prt;"CAL FILE = ";Calset
+14340   IF NOT Powcal THEN   ! Print where stored & what file name
+14350     IF Devicenum$(Port)[1,1]="C" THEN OUTPUT @Prt;"RESULTS FILE = ";Measfile$(Port);" in directory /CHECKSTD"
+14360     IF Devicenum$(Port)[1,1]<>"C" THEN OUTPUT @Prt;"RESULTS FILE = ";Measfile$(Port);" in directory /CUSTOMER"
+14370     OUTPUT @Prt;""
+14380   END IF
+14390 SUBEND !................... Printpageheader ............................
+14400 !
+14410 Printavg1port: SUB Printavg1port(Vardevice,Settings$(*),Port,Avgs(*),Stddev(*))
+14420  ! Print final average results for 1-port device.
+14430  !
+14440  ! INPUT:  Vardevice is non-zero if the device is variable.
+14450  !         Settings$(*) describes the settings measured if device variable
+14460  !         Port= port # device measured on, 1 or 2.
+14470  !         Resid(# freqs, # repeats) has the max power meter std dev
+14480  !            for the port the device was measured on.  If the device
+14490  !            is fixed, # repeats= 1 (1 max meter dev per freq).  If the
+14500  !            device is variable, # repeats= Numrepeats (= # of settings
+14510  !            measured) (1 max resid for each setting at each freq).
+14520  !         Avgs(# freqs,# settings,2) has the avg Gamma mag & arg value
+14530  !            for each freq (& each setting if the device is variable)
+14540  !         Stddev(# freqs,# settings,2) has the std devs of Gamma mag &
+14550  !            arg for each freq (& each setting if the device is variable)
+14560  !
+14570   OPTION BASE 1
+14580   DEG
+14590   COM /Prt/@Prt,Prt
+14600   COM /Meascontrol/Numrepeats,Numconnects,Numphases
+14610   COM /Freqinfo/Freq(*),Numfreqs,Freqremeasured(*),Levels(*)
+14620   !
+14630   DIM G$[35],Cg$[6] ! For special chars on thermal printer
+14640   !
+14650  ! Define special characters: Gamma
+14660   G$=CHR$(27)&"&n71c62f34g32h32i32j32k112L"     ! G -> Gamma
+14670   Cg$=CHR$(27)&"&n71C"       ! Clear redefined gamma char
+14680   !
+14690   OUTPUT @Prt;""       ! Print column headers
+14700   IF NOT Vardevice THEN      ! Fixed device
+14710 Term: IMAGE K,"Freq(GHz)    |G|   StdDev|G|   Arg(G)    StdDevArg(G)",K
+14720     OUTPUT @Prt USING Term;G$,Cg$     ! Column header: Prints "G" as Gamma char
+14730       !
+14740   ELSE                       ! Variable device
+14750 Termvar: IMAGE K,"Freq(GHz)   Setting     |G|   StdDev|G|   Arg(G)    StdDevArg(G)  ",K
+14760     OUTPUT @Prt USING Termvar;G$,Cg$    ! Column header: Prints "G" = Gamma char
+14770   END IF
+14780   !
+14790   ! Print table of final (average) results
+14800   !
+14810   FOR Freqnum=1 TO Numfreqs
+14820     IF NOT Vardevice THEN   ! Fixed device
+14830 Avgimg: IMAGE    X,3D.3D,4X,D.4D,3X,D.4D,3X,M3D.3D,7X,M3D.3D,4X,D.6D
+14840       Magg=Avgs(Freqnum,1,1)
+14850       Maggdev=Stddev(Freqnum,1,1)
+14860       Argg=Avgs(Freqnum,1,2)
+14870       Arggdev=Stddev(Freqnum,1,2)
+14880       OUTPUT @Prt USING Avgimg;Freq(Freqnum),Magg,Maggdev,Argg,Arggdev
+14890     !
+14900     ELSE                     ! Variable device
+14910 Avgimgvar1: IMAGE       X,3D.3D,3X,10A,3X,D.4D,3X,D.4D,3X,M3D.3D,7X,M3D.3D,,
+14920 Avgimgvar2: IMAGE       11X,10A,3X,D.4D,3X,D.4D,3X,M3D.3D,7X,M3D.3D
+14930       FOR Set=1 TO Numrepeats  ! Print values for each setting measured
+14940         Magg=Avgs(Freqnum,Set,1)
+14950         Maggdev=Stddev(Freqnum,Set,1)
+14960         Argg=Avgs(Freqnum,Set,2)
+14970         Arggdev=Stddev(Freqnum,Set,2)
+14980         IF Set=1 THEN OUTPUT @Prt USING Avgimgvar1;Freq(Freqnum),Settings$(Set,Port),Magg,Maggdev,Argg,Arggdev
+14990         IF Set>1 THEN OUTPUT @Prt USING Avgimgvar2;Settings$(Set,Port),Magg,Maggdev,Argg,Arggdev
+15000       NEXT Set
+15010     END IF
+15020   NEXT Freqnum
+15030   OUTPUT @Prt;CHR$(12)
+15040 SUBEND !................... Printavg1port ..............................
+15050 !
+15060 Printavg2port: SUB Printavg2port(Vardevice,Nonrecip,Settings$(*),Port,Avgs(*),Stddev(*))
+15070  ! Print final average results for 2-port device.
+15080  !
+15090  ! INPUT:  Vardevice is non-zero if the device is variable.
+15100  !         Nonrecip is non-zero if device is not reciprocal.
+15110  !         Settings$(*) describes settings measured if device variable.
+15120  !         Port= which direction device is in, =1 for forward,
+15130  !             2 for reverse
+15140  !         Avgs(# freqs,# settings,8) has the average Sij mag & arg values
+15150  !            for ea freq (&setting if the device is variable)
+15160  !         Stddev(#freqs,# settings,8) has the standard deviations of Sij
+15170  !            mag & phase for ea freq (& setting if the device's variable)
+15180  ! |S12| & |S21| averages & std devs calculated for dB values.
+15190  !
+15200   OPTION BASE 1
+15210   DEG
+15220   COM /Prt/@Prt,Prt
+15230   COM /Meascontrol/Numrepeats,Numconnects,Numphases
+15240   COM /Freqinfo/Freq(*),Numfreqs,Freqremeasured(*),Levels(*)
+15250   !
+15260   DIM S1$[27],S2$[30],Cs1$[6],Cs2$[6] ! For special chars
+15270   DIM Sij(8)  ! Sij mag & phase of devices for 1 frequency (& setting)
+15280   DIM Dev(8)  ! Deviations for Sij for 1 freq (& setting)
+15290   DIM S$[10]  ! Setting description for a variable device
+15300  ! Define special characters: subscripts for Sij
+15310  !
+15320   S1$=CHR$(27)&"&n49c8j24k8l8m8n28O"     ! 1 -> Subscript 1, Sij
+15330   S2$=CHR$(27)&"&n50c24j36k8l16m32n60O"     ! 2 -> sub. 2, Sij
+15340   Cs2$=CHR$(27)&"&n50C"      ! Clear 2 subscript char replacement
+15350   Cs1$=CHR$(27)&"&n49C"      ! Clear 1 subscript char replacement
+15360   STATUS @Prt,3;Prtasg
+15370   IF Prtasg=1 THEN
+15380     S1$=""
+15390     S2$=""
+15400     Cs1$=""
+15410     Cs2$=""
+15420   END IF
+15430     !
+15440     !   ......... Print 2-port devices average Sij ..........
+15450     !  PRINT |S12| AND |S21| IN dB, NOT RATIO
+15460     ! If device is nonreciprocal, print both S12 & S21.
+15470     ! If device is variable, print out setting descriptions.
+15480     !
+15490   FOR Table=1 TO 2      ! 2 tables: 1 for mags, 1 for args
+15500     OUTPUT @Prt;""   ! Print column headers
+15510  !  OUTPUT @Prt;S1$,S2$        ! Print "1" and "2" as subscripts
+15520     IF Table=1 THEN OUTPUT @Prt;"                           Magnitude information"
+15530     IF Table=2 THEN OUTPUT @Prt;"                           Angle information"
+15540     !
+15550     IF NOT Vardevice THEN          ! Fixed device
+15560       IF Nonrecip AND Table=1 THEN OUTPUT @Prt;"Freq(GHz) |S11|  StdDev   |S12| StdDev  |S21| StdDev |S22|  StdDev"                   ! Nonrecip mag
+15570       IF NOT Nonrecip AND Table=1 THEN OUTPUT @Prt;"Freq(GHz)    |S11|  StdDev   |S12|   StdDev    |S21|    StdDev    |S22|  StdDev"! Reciprocal mags
+15580       IF Nonrecip AND Table=2 THEN OUTPUT @Prt;"Freq(GHz) Arg(S11)  StdDev  Arg(S12)  StdDev  Arg(S21)  StdDev  Arg(S22)  StdDev"    ! Nonrecip args
+15590       IF NOT Nonrecip AND Table=2 THEN OUTPUT @Prt;"Freq(GHz) Arg(S11) StdDev   Arg(S12) StdDev   Arg(S21) StdDev   Arg(S22) Std Dev"   ! Reciprocal args
+15600     !
+15610     ELSE                           ! Variable device
+15620       IF Nonrecip AND Table=1 THEN OUTPUT @Prt;"Freq(GHz) Setting |S11| StdDev |S12| StdDev |S21| StdDev |S22| StdDev"           ! Nonrecip, mags
+15630       IF NOT Nonrecip AND Table=1 THEN OUTPUT @Prt;"Freq(GHz)  Setting   |S11| StdDev |S12|  StdDev |S22| StdDev"              ! Reciprocal, mags
+15640       IF Nonrecip AND Table=2 THEN OUTPUT @Prt;"Freq(GHz) Setting Arg(S11) StdDev Arg(S12) StdDev Arg(S21) StdDev Arg(S22) StdDev" ! Nonrecip, args
+15650       IF NOT Nonrecip AND Table=2 THEN OUTPUT @Prt;"Freq(GHz)   Setting  Arg(S11)  StdDev  Arg(S12)  StdDev Arg(S22) StdDev" ! Reciprocal, args
+15660     END IF
+15670     IF Prt<>1 THEN OUTPUT @Prt;Cs1$,Cs2$       ! Clear subscript printing
+15680    !
+15690    !  The following are IMAGEs for printing info for FIXED devices
+15700 Mag: IMAGE X,3D.3D,2X,M3D.4D,X,.4D,3X,3D.4D,X,2D.4D,2X,3D.4D,2X,2D.4D,X,M3D.4D,2X,.4D    ! Reciprocal, magnitudes
+15710 Arg: IMAGE X,3D.3D,X,3(M3D.3D,2X,3D.3D,X),M3D.3D,2X,3D.3D  ! Reciprocal, args
+15720        !
+15730    !  The following are IMAGEs for printing info for VARIABLE devices
+15740 Nrvmag: IMAGE 3D.3D,X,9A,X,D.3D,X,D.3D,X,2D.3D,X,2D.3D,X,2D.3D,X,2D.2D,X,D.3D,X,D.3D,2X         ! Non recip, magnitudes
+15750 Nrvmagset: IMAGE 8X,9A,X,D.3D,X,D.3D,X,2D.3D,X,2D.3D,X,2D.3D,X,2D.2D,X,D.3D,X,D.3D,2X           ! Non recip, magnitudes, skipping freq printing
+15760 Vmag: IMAGE X,3D.3D,2X,10A,X,D.3D,X,D.3D,2X,2D.3D,X,2D.3D,X,D.3D,X,D.3D,2X                      ! Reciprocal, magnitudes
+15770 Vmagset: IMAGE 10X,10A,X,D.3D,X,D.3D,2X,2D.3D,X,2D.3D,X,D.3D,X,D.3D,2X                          ! Reciprocal, mags, skipping freq printing.
+15780 Nrvarg: IMAGE 3D.3D,X,9A,X,3(M3D.2D,2X,M3D.D,X),M3D.2D,"≥",X,M3D.D                              ! Non reciprocal, args
+15790 Nrvargset: IMAGE 8X,9A,X,3(M3D.2D,2X,M3D.D,X),M3D.2D,"≥",X,M3D.D
+15800                     ! Non reciprocal, args, skipping freq printing
+15810 Varg: IMAGE X,3D.3D,2X,10A,X,2(M3D.2D,2X,M3D.3D,X),M3D.2D,2X,M3D.3D                             ! reciprocal, args
+15820 Vargset: IMAGE 10X,10A,X,2(M3D.2D,2X,M3D.3D,X),M3D.2D,2X,M3D.3D                                 ! reciprocal, args, skipping freq printing
+15830     !
+15840     Col=Table           ! Access correct data: mags or args, for table
+15850     FOR Freqnum=1 TO Numfreqs   ! Print data for each freq
+15860       IF NOT Vardevice THEN     ! Fixed device
+15870         MAT Sij(1:8)=Avgs(Freqnum,1,*)  ! Sij for this freq
+15880         MAT Dev(1:8)=Stddev(Freqnum,1,*) ! Deviations for this freq
+15890       ! If magnitudes
+15900         IF Table=1 THEN
+15910           OUTPUT @Prt USING Mag;Freq(Freqnum),Sij(Col),Dev(Col),Sij(Col+2),Dev(Col+2),Sij(Col+4),Dev(Col+4),Sij(Col+6),Dev(Col+6)
+15920         END IF
+15930       ! If args
+15940         IF Freqnum=1 AND Table=2 THEN CALL Keyques("Do you want print out of ARG? ",Ans,"00  YES;01  NO;","0",0)
+15950         IF Ans=0 AND Table=2 THEN
+15960           OUTPUT @Prt USING Arg;Freq(Freqnum),Sij(Col),Dev(Col),Sij(Col+2),Dev(Col+2),Sij(Col+4),Dev(Col+4),Sij(Col+6),Dev(Col+6)
+15970         END IF
+15980       !
+15990       ELSE                      ! Variable device
+16000         FOR Set=1 TO Numrepeats  ! Each setting measured
+16010           S$=Settings$(Set,Port)   ! Setting description this setting
+16020           MAT Sij(1:8)=Avgs(Freqnum,Set,*) ! Data for this setting & freq
+16030           MAT Dev(1:8)=Stddev(Freqnum,Set,*) ! Std devs this setting & freq
+16040           IF Table=1 THEN
+16050             S12db=Sij(Col+2) ! |S12| in dB
+16060             S21db=Sij(Col+4) ! |S21| in dB
+16070           END IF
+16080           IF Set=1 AND Table=1 THEN ! Print freqs only first setting of freq
+16090             IF Nonrecip THEN OUTPUT @Prt USING Nrvmag;Freq(Freqnum),S$,Sij(Col),Dev(Col),S12db,Dev(Col+2),S21db,Dev(Col+4),Sij(Col+6),Dev(Col+6)
+16100             IF NOT Nonrecip THEN OUTPUT @Prt USING Vmag;Freq(Freqnum),S$,Sij(Col),Dev(Col),S12db,Dev(Col+2),Sij(Col+6),Dev(Col+6)
+16110           END IF
+16120           IF Set>1 AND Table=1 AND Nonrecip THEN ! Magnitudes
+16130             OUTPUT @Prt USING Nrvmagset;S$,Sij(Col),Dev(Col),S12db,Dev(Col+2),S21db,Dev(Col+4),Sij(Col+6),Dev(Col+6)
+16140           END IF
+16150           IF Set>1 AND Table=1 THEN ! Magnitudes
+16160             IF NOT Nonrecip THEN OUTPUT @Prt USING Vmagset;S$,Sij(Col),Dev(Col),S12db,Dev(Col+2),Sij(Col+6),Dev(Col+6)
+16170           END IF
+16180           IF Set=1 AND Table=2 THEN ! Print freqs only 1st setting of freq
+16190             IF Nonrecip THEN OUTPUT @Prt USING Nrvarg;Freq(Freqnum),S$,Sij(Col),Dev(Col),Sij(Col+2),Dev(Col+2),Sij(Col+4),Dev(Col+4),Sij(Col+6),Dev(Col+6)
+16200             IF NOT Nonrecip THEN OUTPUT @Prt USING Varg;Freq(Freqnum),S$,Sij(Col),Dev(Col),Sij(Col+2),Dev(Col+2),Sij(Col+6),Dev(Col+6)
+16210           END IF
+16220           IF Set>1 AND Table=2 AND Nonrecip THEN ! Magnitudes
+16230             OUTPUT @Prt USING Nrvargset;S$,Sij(Col),Dev(Col),Sij(Col+2),Dev(Col+2),Sij(Col+4),Dev(Col+4),Sij(Col+6),Dev(Col+6)
+16240           END IF
+16250           IF Set>1 AND Table=2 THEN ! Magnitudes
+16260             IF NOT Nonrecip THEN OUTPUT @Prt USING Vargset;S$,Sij(Col),Dev(Col),Sij(Col+2),Dev(Col+2),Sij(Col+6),Dev(Col+6)
+16270           END IF
+16280         NEXT Set
+16290       END IF
+16300     NEXT Freqnum
+16310   NEXT Table
+16320   OUTPUT @Prt;CHR$(12)
+16330 SUBEND !................... Printavg2port ..............................
+16340 !
+16350 Avg1port1: SUB Avg1port1(Vardevice,Settings$(*),Port,D8536(*),Stddev(*),Avgs(*))
+16360 ! Compute averages & standard deviations for 1-port device on port Port.
+16370 !  Averaging done on magnitude & phase seperately.
+16380 !
+16390 ! INPUT: Vardevice is non-zero if device is variable.
+16400 !        Settings$(*) describes the settings measured if device variable.
+16410 !        Port= 1 or 2 for results of device on 6-port 1 or 2.
+16420 !        D8536(*)= data for every connect, frequency.
+16430 !
+16440 ! OUTPUT:  Averages for each freq, and std devs, are printed.
+16450 !
+16460   OPTION BASE 1
+16470   DEG
+16480   COM /Meascontrol/Numrepeats,Numconnects,Numphases
+16490   COM /Freqinfo/Freq(*),Numfreqs,Freqremeasured(*),Levels(*)
+16500   !
+16510   ! LOCAL VARS:  Connavg(*)= connect averages for a fixed device.
+16520   !              Diffsum(*)= used to get standard deviations.
+16530   !              Stddev(*)= standard deviations.
+16540   !              Avgs(*)= final averages.
+16550   !
+16560   ALLOCATE Diffsum(Numfreqs,Numrepeats,2),Connavg(Numfreqs,Numconnects,2)
+16570   MAT Avgs=(0)
+16580   MAT Stddev=(0)
+16590   !
+16600   FOR Eafreq=1 TO Numfreqs     ! Get final averages for each frequency
+16610     IF NOT Vardevice THEN      ! Fixed device:  1 average per freq
+16620   ! For a fixed device, to get the final average for a freq:  average
+16630   !     all repeats to get the connect average, then average all connect
+16640   !     averages for the final average.
+16650   !
+16660       FOR Eaconnect=1 TO Numconnects   ! Each connect
+16670         ! Final avg= avg of all connects
+16680         Avgs(Eafreq,1,1)=Avgs(Eafreq,1,1)+D8536(Eaconnect,Eafreq,2)/Numconnects       ! Magnitude avg
+16690         Avgs(Eafreq,1,2)=Avgs(Eafreq,1,2)+D8536(Eaconnect,Eafreq,3)/Numconnects       ! Arg avg
+16700       NEXT Eaconnect
+16710      !
+16720       FOR Eaconnect=1 TO Numconnects ! Compute SUM(ea connect-final avg)^2
+16730         Diffsum(Eafreq,1,1)=Diffsum(Eafreq,1,1)+(D8536(Eaconnect,Eafreq,2)-Avgs(Eafreq,1,1))^2     ! Magnitudes
+16740         Diffsum(Eafreq,1,2)=Diffsum(Eafreq,1,2)+(D8536(Eaconnect,Eafreq,3)-Avgs(Eafreq,1,2))^2     ! Args
+16750       NEXT Eaconnect
+16760      !
+16770      ! Final std dev= SQR[(1/Numconnects-1)*SUM(ea connect- final avg)^2]
+16780       IF Numconnects>1 THEN Stddev(Eafreq,1,1)=SQR(Diffsum(Eafreq,1,1)/(Numconnects-1))       ! Std dev magnitudes
+16790       IF Numconnects>1 THEN Stddev(Eafreq,1,2)=SQR(Diffsum(Eafreq,1,2)/(Numconnects-1))       ! Std dev args
+16800     END IF
+16810     !
+16820     IF Vardevice THEN     ! Get avgs for every setting (repeat) for a freq
+16830   ! For a variable device, to get the final average for all settings for
+16840   !     a frequency, average all connects for each setting to get the
+16850   !     final average.
+16860   !     For a variable device, Numrepeats = number of settings measured.
+16870   !
+16880       FOR Earepeat=1 TO Numrepeats        ! For each setting
+16890         FOR Eaconnect=1 TO Numconnects    ! For each connect
+16900           Avgs(Eafreq,Earepeat,1)=Avgs(Eafreq,Earepeat,1)+D8536(Eaconnect,Eafreq,Port+1)/Numconnects ! Avg ea setting = avg all connects
+16910           Avgs(Eafreq,Earepeat,2)=Avgs(Eafreq,Earepeat,2)+D8536(Eaconnect,Eafreq,Port+2)/Numconnects ! Avg ea setting = avg all connects
+16920         NEXT Eaconnect
+16930       !
+16940         FOR Eaconnect=1 TO Numconnects
+16950           ! Compute SUM (each setting- final setting average)^2
+16960           Diffsum(Eafreq,Earepeat,1)=Diffsum(Eafreq,Earepeat,1)+(Avgs(Eafreq,Earepeat,1)-D8536(Eaconnect,Eafreq,Port+1))^2
+16970           Diffsum(Eafreq,Earepeat,2)=Diffsum(Eafreq,Earepeat,2)+(Avgs(Eafreq,Earepeat,2)-D8536(Eaconnect,Eafreq,Port+2))^2
+16980         NEXT Eaconnect
+16990        ! Compute SQR[(1/Numconnects-1)*SUM(each setting-final avg)^2]
+17000         IF Numconnects>1 THEN Stddev(Eafreq,Earepeat,1)=SQR(Diffsum(Eafreq,Earepeat,1)/(Numconnects-1))    ! Std dev magnitudes
+17010         IF Numconnects>1 THEN Stddev(Eafreq,Earepeat,2)=SQR(Diffsum(Eafreq,Earepeat,2)/(Numconnects-1))    ! Std dev magnitudes
+17020       NEXT Earepeat   ! Next setting
+17030     END IF
+17040   NEXT Eafreq
+17050   !
+17060   ! Print out final avgs & std devs
+17070   CALL Printavg1port(Vardevice,Settings$(*),Port,Avgs(*),Stddev(*))
+17080   DEALLOCATE Diffsum(*),Connavg(*)
+17090 SUBEND !................... Avg1port1 ..................................
+17100 !
+17110 Averages: SUB Averages(Meastype$,Sp,Meastime$,Settings$(*),Measfile$(*),D8536(*),Calset,Pt,Rev$,Stddev(*),Avgs(*))
+17120   ! Calculate & print out average (final) results & standard deviations.
+17130   !
+17140   ! Input: Meastype$= type of the device(s) measured, e.g. "1-port".
+17150   !        Sp= 1 if device was measured on port 1 or in forward direction,
+17160   !          = 2 for port 2 or reverse direction, =3 for two devices at
+17170   !          once, one on each port.
+17180   !        Meastime$= time of the measurement.
+17190   !        Settings$(*) describes settings measured on a variable device.
+17200   !        Measfile$(2)= name of the results measurement file, for
+17210   !          device(s) on port or direction 1 or 2.
+17220   !        D8536(*)= data from the 8510.
+17230   ! Output:  Averages & std devs printed.
+17240   !
+17250   OPTION BASE 1
+17260   COM /Prt/@Prt,Prt
+17270   DEG
+17280   FOR Eaport=(Sp=1 OR Sp=3)+(Sp=2)*2 TO (Sp=2 OR Sp=3)*2+(Sp=1)
+17290     CALL Printpageheader(Eaport,Meastime$,Measfile$(*),Calset,Rev$)
+17300     IF POS(Meastype$,"V") THEN GOTO Doneprinting
+17310     DISP "... CALCULATING AVERAGES FOR DEVICE";
+17320     IF NOT POS(Meastype$,"2") THEN DISP " ON PORT ";Eaport;
+17330     DISP " ..."
+17340     IF Pt=0 THEN ASSIGN @Prt TO 1
+17350     IF Pt=1 THEN ASSIGN @Prt TO Prt
+17360     SELECT Meastype$  ! Calculate & print averages & std devs
+17370     CASE "1-port","1-portV"
+17380       IF Eaport=1 THEN CALL Avg1port1(POS(Meastype$,"V"),Settings$(*),Eaport,D8536(*),Stddev(*),Avgs(*))
+17390       IF Eaport=2 THEN CALL Avg1port2(POS(Meastype$,"V"),Settings$(*),Eaport,D8536(*),Stddev(*),Avgs(*))
+17400     CASE "2-port","2-portV","2-portNR","2-portVNR"
+17410       CALL Avg2port(POS(Meastype$,"V"),POS(Meastype$,"NR"),Settings$(*),Eaport,D8536(*),Stddev(*),Avgs(*))
+17420     END SELECT
+17430     DISP
+17440   NEXT Eaport
+17450 Doneprinting: SUBEND !...... Averages .....................
+17460 !
+17470 Createmeasfile: SUB Createmeasfile(Remeasure,P$,Meastime$,Measfile$(*),Dataindex(*),D8536(*),@Anal,Calset,Startindexarray)
+17480   !  Create measurement result file(s).
+17490   !  Temp results file is created in RAM.  Once all data is stored in it,
+17500   !   the file will be moved to the hard disc.
+17510   !
+17520   !  Input:  P$= program name & revision string.
+17530   !          Meastime$= time of current measurement run.
+17540   !
+17550   !  Output:  Measfile$(i)= name of file for device on port i. i= 1 and/
+17560   !               or 2, depending on Sp value.
+17570   !           Dataindex(Numconnects,Numfreqs)= array of starting record
+17580   !               numbers for the file(s) created for each connect &
+17590   !               freq to be measured.
+17600   !           If the device(s) are check standard (Devicenum$ starts with
+17610   !               a "C"), the files are created in directory
+17620   !               /CHECKSTD on the default disc, otherwise they are
+17630   !               in directory /CUSTOMER.  If remeasuring, the previous
+17640   !               file(s) have been copied to new name, and the Meastime$
+17650   !               updated for the current run.
+17660   !           File names have the form:  DeviceID$.L##, where DeviceID$=
+17670   !              device ID or S/N or NIST #, L= system letter, ##= file
+17680   !              number.
+17690   !
+17700   OPTION BASE 1
+17710   COM /Freqinfo/Freq(*),Numfreqs,Freqremeasured(*),Levels(*)
+17720   COM /System/Spid$,Systemletter$,Connectors$,Operator$,Headident$,Headsign
+17730   COM /Meascontrol/Numrepeats,Numconnects,Numphases
+17740   COM /Measdev/Sp,Meastype$,Devicedescript$(*),Devicenum$(*),Comment1$,Comment2$,Comment3$,Settings$(*)
+17750   DIM Prevfile$[10]    ! To store prev file name if remeasuring.
+17760   DIM Dir$[30]         ! Directory in which to create file(s)
+17770   !
+17780   Meastime$=TIME$(TIMEDATE)
+17790   !  For device(s) on port(s) used
+17800   !
+17810   FOR Port=(Sp=1 OR Sp=3)+(Sp=2)*2 TO (Sp=2 OR Sp=3)*2+(Sp=1)
+17820     IF Devicenum$(Port)[1,1]="C" OR Devicenum$(Port)[1,1]="c" THEN Dir$="/CHECKSTD/"
+17830     IF Devicenum$(Port)[1,1]<>"C" AND Devicenum$(Port)[1,1]<>"c" THEN Dir$="/CUSTOMER/"
+17840      !
+17850      ! Find number Filenumb for file's number & assemble new file name
+17860     CALL Filenum(Dir$,Devicenum$(Port)&"."&Systemletter$,Filenumb)
+17870     Measfile$(Port)=Devicenum$(Port)&"."&Systemletter$&VAL$(Filenumb)
+17880      !
+17890     OUTPUT 1;"MEASUREMENT FILE FOR DEVICE";
+17900     IF NOT POS(Meastype$,"2") THEN OUTPUT 1;" ON PORT ";Port;
+17910     OUTPUT 1;" WILL BE = ";Dir$;Measfile$(Port)
+17920   !
+17930   ! Calculate starting records for header, array, and data storage,
+17940   !  and size of the file in records & bytes per rec
+17950   !
+17960     Headerrecs=6                      ! Number of header records
+17970     Startfreqarray=7                  ! Start record of freq array
+17980     Numbytesperrec=128                ! Number of bytes per record--
+17990              ! 128 bytes= 16 real numbers can be stored in each rec.
+18000     Numrecsforfreqs=INT(Numfreqs/16)+1! Number records for freq array
+18010     Startindexarray=Startfreqarray+Numrecsforfreqs! Start index array
+18020     Numrecsforindex=INT((Numfreqs*Numconnects)/16+1)! # recs for index
+18030      !
+18040      ! Number of recs per data block= 1 for intermediate results, 1 for
+18050      !  residuals, for each connect, frequency, and repeat.
+18060      !
+18070     Recsfordatablk=2*Numfreqs*Numconnects*Numrepeats
+18080     Startdata=Startindexarray+Numrecsforindex ! Start rec of data
+18090      !
+18100      !  Number of recs in calib summary block = 1 for freq & adapter
+18110      !     error box, 1 for rezero & rezero error box, 1 for skin depth
+18120      !     adjustment data, for each frequency.
+18130      !
+18140     Recsforsumblk=0   ! NO ADAPTER/REZERO INFO NEEDED FOR 8510
+18150     Startsum=Startdata+Recsfordatablk    ! Start of calib summary
+18160      !
+18170      !  If device is power, number of recs in power calib summary
+18180      !   block= 1 for power standard data & calib info, for each freq.
+18190      !
+18200     IF Meastype$="Thermistor" OR Meastype$="DryCal" THEN
+18210       Recsforpowsum=Numfreqs
+18220       Startpow=Startsum+Recsforsumblk    ! Start power summary
+18230     END IF
+18240      !
+18250      !  Calculate # records in the entire file.  File structure = header
+18260      !  records, frequency array, array of starting records for each
+18270      !  connect & freq's data block, data block, calib summary data block,
+18280      !  and (if power device) power calib summary block.
+18290      !
+18300     Numrecs=Headerrecs+Numrecsforfreqs+Numrecsforindex+Recsfordatablk+Recsforsumblk+Recsforpowsum
+18310   !
+18320   ! Create meas file, store or update header:  IN THE TEMP RAM FILE.
+18330   !
+18340     DISP "CREATING MEASUREMENT FILE IN /6port/ramfile:  ";Measfile$(Port);"  ...."
+18350    ! Create a new file
+18360     ON ERROR GOSUB Delete_file
+18370     CREATE BDAT "/6port/ramfile/"&Measfile$(Port),Numrecs,Numbytesperrec
+18380     ASSIGN @Eof TO "/6port/ramfile/"&Measfile$(Port)
+18390     CONTROL @Eof,7;Numrecs ! EOF pointer to last record
+18400     CONTROL @Eof,8;Numbytesperrec! EOF pointer to last byte of last rec
+18410     ASSIGN @Eof TO *
+18420     CALL Storemeasheader(Remeasure,Port,Measfile$(Port),P$,Meastime$,Dataindex(*),Startfreqarray,Startindexarray,Startdata,Startsum,Startpow)
+18430   NEXT Port
+18440   SUBEXIT
+18450 Delete_file: LINPUT "The file already exist - do you want to delete it now (Y or N)?",Delete_question$
+18460   IF UPC$(Delete_question$)="Y" THEN
+18470     PURGE "/6port/ramfile/"&Measfile$(Port)
+18480   END IF
+18490   OFF ERROR
+18500   RETURN
+18510 SUBEND !................... Createmeasfile .............................
+18520 !
+18530 !**********************************************************************************************
+18540 SUB Xtstostapg(@Anal,Dataindex(*),D8536(*),Measfile$(*),Startindexarray,Calset,Sparam_list$(*))
+18550 !**********************************************************************************************
+18560 !
+18570 Xtstostapg: OPTION BASE 1
+18580   ! Control for transfer data (from 8510), store data, restore status (of
+18590   !   8510), and purge old files from the ram disc.
+18600   !
+18610   !
+18620   COM /Freqinfo/Freq(*),Numfreqs,Freqremeasured(*),Levels(*)
+18630   COM /System/Spid$,Systemletter$,Connectors$,Operator$,Headident$,Headsign
+18640   COM /Meascontrol/Numrepeats,Numconnects,Numphases
+18650   COM /Measdev/Sp,Meastype$,Devicedescript$(*),Devicenum$(*),Comment1$,Comment2$,Comment3$,Settings$(*)
+18660   !
+18670   CALL Keyques("Connect unknown.",Ans,"00Con'tue;","0",0)
+18680   !
+18690   FOR Connect=1 TO Numconnects
+18700     LOCAL @Anal
+18710     IF Connect>1 THEN CALL Keyques("Disconnect and reconnect for connection #"&VAL$(Connect),Ans,"00Con'tue;","0",0)
+18720     FOR Repeat=1 TO Numrepeats
+18730   !  IF POS(Meastype$,"V") THEN DISP "Set device to setting # ";Repeat;" and CONTINUE...."
+18740   !   IF POS(Meastype$,"V") THEN PAUSE
+18750       CALL Xt(@Anal,Numfreqs,Connect,Sp,Meastype$,Sparam_list$(*))
+18760       CALL Storedata(Measfile$(*),Dataindex(*),Startindexarray,Numfreqs,Numconnects,D8536(*),Freq(*),Connect,Numrepeats,Repeat)
+18770     NEXT Repeat
+18780   NEXT Connect
+18790   !
+18800   CALL Display_traces(@Anal,Meastype$,Sp,Sparam_list$(*))
+18810   CALL Resetana(@Anal)
+18820   !
+18830   FOR Port=(Sp=1 OR Sp=3)+(Sp=2)*2 TO (Sp=2 OR Sp=3)*2+(Sp=1)
+18840     IF Devicenum$(Port)[1,1]<>"C" THEN Dir$="/CUSTOMER/"
+18850     IF Devicenum$(Port)[1,1]="C" THEN Dir$="/CHECKSTD/"
+18860   ! DISP "... MOVING RAM FILE TO HARD DISC FILE ";Dir$&Measfile$(Port)
+18870     COPY "/6port/ramfile/"&Measfile$(Port) TO Dir$&Measfile$(Port)
+18880     PURGE "/6port/ramfile/"&Measfile$(Port)
+18890     OUTPUT 1 USING "/,K,K";"NEW FILE IS ";Dir$&Measfile$(Port)
+18900   NEXT Port
+18910 SUBEND !................... Xtstostapg .................................
+18920 !
+18930 Storedata: SUB Storedata(Measfile$(*),Dataindex(*),Startindex,Numfreqs,Numconnects,D8536(*),Freq(*),C,Numrepeats,Repeat)
+18940 ! Stores data from array D8536 to file in 6port format.
+18950 !
+18960 ! Inputs: Sp - As defined in sub Createmeasfile
+18970 !         Measfile$(*) - As defined in sub Createmeasfile(from Devicenum$
+18980 !                         and Systemletter$ and Filenumb).
+18990 !         Numconnects - Number of connects.
+19000 !         Numfreqs - Number of frequencies.
+19010 !         Dataindex(Numconnects,Numfreqs) - array of starting record
+19020 !                 numbers for the file(s) created for each connect &
+19030 !                 freq to be measured.
+19040 !         Startindex - Start index array.
+19050 !         D8536(*) - Data from network analyzer.
+19060 !
+19070 ! Outputs: data into Measfile$(Port) in 6port format.
+19080 !
+19090   COM /Measdev/Sp,Meastype$,Devicedescript$(*),Devicenum$(*),Comment1$,Comment2$,Comment3$,Settings$(*)
+19100   FOR Port=(Sp=1 OR Sp=3)+(Sp=2)*2 TO (Sp=2 OR Sp=3)*2+(Sp=1)
+19110     ASSIGN @Out TO "/6port/ramfile/"&Measfile$(Port)
+19120  !  Recsperfreqblk=2*Numrepeats
+19130  !  Dataindex(1,1)=Startindex+INT((Numfreqs*Numconnects)/16+1) ! First block start
+19140  !  Dataindex(C,1)=Dataindex(1,1)+(C-1)*2*Numfreqs*Numrepeats
+19150     FOR I=1 TO Numfreqs         ! Each frequency
+19160       SELECT Meastype$
+19170       CASE "1-port","1-portV"      ! 1-port device
+19180         IF Port=1 THEN OUTPUT @Out,Dataindex(C,I)+(Repeat-1)*2;Freq(I),D8536(C,I,2),D8536(C,I,3),Settings$(Repeat,Port)
+19190         IF Port=2 THEN OUTPUT @Out,Dataindex(C,I)+(Repeat-1)*2;Freq(I),D8536(C,I,8),D8536(C,I,9),Settings$(Repeat,Port)
+19200       CASE "2-port","2-portV","2-portNR","2-portVNR"    ! 2-port
+19210         Las1=D8536(C,I,8)
+19220         Las2=D8536(C,I,9)
+19230         Beg1=D8536(C,I,2)
+19240         Beg2=D8536(C,I,3)
+19250         OUTPUT @Out,Dataindex(C,I)+(Repeat-1)*2;Freq(I),Beg1,Beg2,D8536(C,I,4),D8536(C,I,5),D8536(C,I,6),D8536(C,I,7),Las1,Las2,Settings$(Repeat,Port)
+19260       END SELECT
+19270  !    IF I<>Numfreqs THEN Dataindex(C,I+1)=Dataindex(C,I)+Recsperfreqblk
+19280     NEXT I
+19290     ASSIGN @Out TO *
+19300   NEXT Port
+19310 SUBEND !................... Storedata ..................................
+19320 !
+19330 SUB Plotctl(Avgs(*),Stddev(*),M,Numfreqs)
+19340   ! Plot control.
+19350   !
+19360   ! Inputs: M - 1 - 1 port
+19370   !             2 - 2 port
+19380   !
+19390 Plotctl: OPTION BASE 1
+19400   COM /Qua/Qua,G
+19410   COM /Prt/@Prt,Prt
+19420   COM /Ex/Exp
+19430   DIM A1$[145],A2$[80],A3$[80],I1(4)
+19440   CLEAR SCREEN
+19450   GINIT
+19460   IF Prt>8 THEN ASSIGN @Prt TO Prt
+19470   !
+19480   IF M=1 THEN   ! Auto plot, 1 port
+19490 D1: DATA 0,1,10,11
+19500     READ I1(*)
+19510     CALL Fourplots(Avgs(*),Stddev(*),A1$,A2$,I1(*),2,Numfreqs,Exp,1)
+19520   END IF
+19530   !
+19540   IF M=2 THEN CALL Autoplt2p(Avgs(*),Stddev(*),A1$,A2$,I1(*),Numfreqs,Exp)
+19550   !
+19560   KEY LABELS ON
+19570   REPEAT
+19580     IF G THEN G$="04 Grids   on;"
+19590     IF G=0 THEN G$="04 Grids   off;"
+19600 Pc2: CALL Keyques("More plots?",Ans,"00  Yes;01  No;19;"&G$,"0",0,"Pc2")
+19610     IF Ans=19 THEN PAUSE
+19620     IF Ans=4 THEN CALL Flip(G)
+19630   UNTIL Ans<>4
+19640   !
+19650   IF Ans=0 THEN CALL Manplts(K1,K2,K3,I1(*),Exp,A1$,A2$,A3$,Avgs(*),Stddev(*),M,Numfreqs)
+19660   IF Prt>8 THEN DUMP DEVICE IS Prt
+19670 SUBEND !................... Plotctl ....................................
+19680 !
+19690 Fourplots: SUB Fourplots(Avgs(*),Stddev(*),A1$,A2$,I1(*),N,Numfreqs,Exp,Stdplt)
+19700   ! Select which plot is to go into which quadrant.            __________
+19710   !                                                           |          |
+19720   !                                                           |  1    2  |
+19730   ! Inputs: I1(4) - One number for each quadrant.   Quadrants:|          |
+19740   !                  Each number representing a plot          |  3    4  |
+19750   !                   parameter                               |__________|
+19760   !                    for 2 ports:
+19770   !                     0 to 3 - s parameters, S11, S12, S21, S22
+19780   !                     4 - difference between S12 and S21
+19790   !                     5 to 8 - arg of s parameters
+19800   !                     10 to 13 - standard dev of connects of s params
+19810   !                     14 - difference between arg's of S12 and S21
+19820   !                     15 to 18 - standard dev of connects of arg's of
+19830   !                       s params
+19840   !                    for 1 ports:
+19850   !                     0 - |Gamma|
+19860   !                     1 - Arg Gamma
+19870   !                     10 - standard dev of connects of Gamma
+19880   !                     11 - standard dev of connects of arg gamma
+19890   !
+19900   COM /Prt/@Prt,Prt
+19910   CSIZE 3,.4
+19920   IF Stdplt=0 THEN
+19930     IF I1(4)=-1 THEN
+19940       FOR I=1 TO 4
+19950 Fp1:    CALL Keyques("Plot in quadrant #"&VAL$(I),Ans,A1$&A2$,"0",0,"Fp1")
+19960         IF Ans=19 THEN PAUSE
+19970         I1(I)=Ans
+19980       NEXT I
+19990     END IF
+20000   END IF
+20010   KEY LABELS OFF
+20020   FOR I=1 TO 4
+20030     Ans=I1(I)
+20040     WINDOW 0,RATIO*100,0,100
+20050     IF Exp=0 THEN CALL Vwpt(I)
+20060     IF Exp=1 THEN CALL Vwptexp(I)
+20070     CALL Selaryplt(Ans,Avgs(*),Stddev(*),N,Numfreqs)
+20080   NEXT I
+20090   IF Stdplt THEN
+20100     IF Prt>8 THEN DUMP DEVICE IS Prt
+20110     IF Prt>8 THEN DUMP GRAPHICS
+20120     IF Prt>8 THEN OUTPUT @Prt;CHR$(12)
+20130     KBD CMODE ON
+20140 !   CLEAR SCREEN
+20150     MAT I1=(-1)
+20160   END IF
+20170 SUBEND !................... Fourplots ..................................
+20180 Dumpgphs: SUB Dumpgphs(K1,K2,K3,I1(*),Ans)
+20190   ! Dump graphics or do more plots or end.
+20200   !
+20210   COM /Prt/@Prt,Prt
+20220   COM /Qua/Qua,G
+20230   IF K3=2 AND Prt>8 THEN DUMP GRAPHICS
+20240   K3=0
+20250 Dg1: CALL Keyques("",Ans,"00;01;02;03;04;05;06;07;08;09;19;","0",0,"Dg1")
+20260   IF Ans=19 THEN PAUSE
+20270   KEY LABELS ON
+20280   REPEAT
+20290     IF G THEN G$="04 Grids   on;"
+20300     IF G=0 THEN G$="04 Grids   off;"
+20310 Dg2: CALL Keyques("More plots?, Dump graphics?",Ans,"00 More   Plots;01No more Plots;02 Dump  grap'cs;03Expan'dgrap'cs;19;"&G$,"0",0,"Dg2")
+20320     IF Ans=19 THEN PAUSE
+20330     IF Ans=4 THEN CALL Flip(G)
+20340   UNTIL Ans<>4
+20350   IF Prt>8 THEN DUMP DEVICE IS Prt
+20360   IF Ans=3 AND Prt>8 THEN DUMP DEVICE IS Prt,EXPANDED
+20370   IF Ans=2 OR Ans=3 THEN K3=2
+20380   RESTORE D
+20390 D: DATA -1,-1,-1,-1,-1,-1
+20400   IF K3=0 THEN READ K1,K2,I1(*)
+20410 SUBEND !................... Dumpgphs ...................................
+20420 Vwpt: SUB Vwpt(I)
+20430   ! Viewport for full scale or quadrant plotting.             __________
+20440   !  With selected full scale or quadrant, first             |          |
+20450   !   do an appropriate viewport and frame.                  |  1    2  |
+20460   !  Second, set anouther viewport                 Quadrants:|          |
+20470   !   smaller than the first(to allow space for              |  3    4  |
+20480   !   labels and scales).                                    |__________|
+20490   !
+20500   PEN 1
+20510   SELECT I
+20520   CASE =0
+20530     VIEWPORT 0,100*RATIO,0,100
+20540     FRAME
+20550     VIEWPORT 22,100*RATIO-3,14,98
+20560   CASE =1
+20570     VIEWPORT 0,100*RATIO/2,50,100
+20580     FRAME
+20590     VIEWPORT 13,100*RATIO/2-2,58,98  ! 1
+20600   CASE =2
+20610     VIEWPORT 100*RATIO/2,100*RATIO,50,100
+20620     FRAME
+20630     VIEWPORT 100*RATIO/2+13,100*RATIO-2,58,98 ! 2
+20640   CASE =3
+20650     VIEWPORT 0,100*RATIO/2,0,50
+20660     FRAME
+20670     VIEWPORT 13,100*RATIO/2-2,8,48  ! 3
+20680   CASE =4
+20690     VIEWPORT 100*RATIO/2,100*RATIO,0,50
+20700     FRAME
+20710     VIEWPORT 100*RATIO/2+13,100*RATIO-2,8,48  ! 4
+20720   END SELECT
+20730 SUBEND !................... Vwpt .......................................
+20740 Selaryplt: SUB Selaryplt(Ans,Avgs(*),Stddev(*),N,Numfreqs)
+20750   ! Select part of Avgs or Stddev to plot.
+20760   !
+20770   ! Inputs: Ans - answer to question as to what to plot. From softkeys in
+20780   !                manual selection or indirectly from I1(*) in standard
+20790   !                plots.
+20800   !           for 2 ports:
+20810   !               0 to 3 - s parameters, S11, S12, S21, S22
+20820   !               4 - difference between S12 and S21
+20830   !               5 to 8 - arg of s parameters
+20840   !               10 to 13 - standard dev of connects of s parameters
+20850   !               14 - difference between arg's of S12 and S21
+20860   !               15 to 18 - standard dev of connects of arg,s of s params
+20870   !           for 1 ports:
+20880   !               0 - |Gamma|
+20890   !               1 - Arg Gamma
+20900   !               10 - standard dev of connects of Gamma
+20910   !               11 - standard dev of connects of arg gamma
+20920   !         N - 2  1 port, 8  2 port
+20930   !
+20940   ! Outputs: for 1 ports - A - index to Avgs(*) or Stddev(*) for transfer
+20950   !                        A$ - name of plot
+20960   !                        B - 1  (see D below)
+20970   !          for 2 ports - C - index to Avgs(*) or Stddev(*) for transfer
+20980   !                        C$ - name of plot
+20990   !                        D - index to arrays for differences(if Ans=4
+21000   !                             or 14, otherwise a 1)
+21010   !
+21020   ! Note: The  1,"",1  in the data below is fake data, appearing where
+21030   !        1 port data is not applicable, but allowing the READ statement
+21040   !        to work correctly.
+21050   !
+21060   OPTION BASE 1
+21070   ALLOCATE Plot(Numfreqs),A$[21],C$[21]
+21080   DATA 1,|Gamma|,1,  1,|S11|,1,     2,Arg(Gamma) deg,1,  3,|S12| dB,1 !0,1
+21090   DATA 1,"",1,       5,|S21| dB,1,  1,"",1,              7,|S22|,1    !2,3
+21100   DATA 1,"",1,   3,|S12|-|S21| dB,5, 1,"",1,         2,Arg(S11) deg,1 !4,5
+21110   DATA 1,"",1,   4,Arg(S12) deg,1,   1,"",1,         6,Arg(S21) deg,1 !6,7
+21120   DATA 1,"",1,   8,Arg(S22) deg,1,  1,Sc. |Gamma|,1, 1,Sc. |S11|,1   !8,10
+21130   DATA 2,Sc. Arg(Gamma) deg,1,   3,Sc. |S12| dB,1                    !11
+21140   DATA 1,"",1,     5,Sc. |S21|,1,    1,"",1,       7,Sc. |S22|,1    !12,13
+21150   DATA 1,"",1,          4,Arg(S12)-Arg(S21) deg,6                   !14
+21160   DATA 1,"",1,  2,Sc. Arg(S11) deg,1, 1,"",1,  4,Sc. Arg(S12) deg,1 !15,16
+21170   DATA 1,"",1,  6,Sc. Arg(S21) deg,1, 1,"",1,  8,Sc. Arg(S22) deg,1 !17,18
+21180   !
+21190   FOR I=0 TO 18  ! Find A,A$,B,C,C$,D to match Ans
+21200     IF I<>9 THEN READ A,A$,B,C,C$,D  ! there is no 9.
+21210     IF I=Ans AND N=2 THEN CALL Plotarrg(Plot(*),Avgs(*),Stddev(*),A,A$,B,Ans)
+21220     IF I=Ans AND N=8 THEN CALL Plotarrg(Plot(*),Avgs(*),Stddev(*),C,C$,D,Ans)
+21230   NEXT I
+21240 SUBEND !................... Selaryplt ..................................
+21250 Plotarrg: SUB Plotarrg(P(*),Avgs(*),Stddev(*),N,L$,Dif,Ans)
+21260   !Plot array (P) is arranged to have one set of data from Avgs or Stddev.
+21270   !
+21280   ! Inputs: Ans - One of 18 parameters for 2port devices and 4 parameters
+21290   !                 for 1port devices, used here to determine if data is
+21300   !                 to be taken from Avgs(*) or Stddev(*).
+21310   !         N - index to Avgs(*) or Stddev(*) for transfer to P(*).
+21320   !         L$ - name of plot
+21330   !         Dif - index to arrays for S12-S21 and Arg S12-Arg S21.
+21340   !             - 1 all other cases.
+21350   !
+21360   ! Outputs: P(*) - Data to plot from Avgs(*) or Stddev(*).
+21370   !
+21380   OPTION BASE 1
+21390   COM /Qua/Qua,G
+21400   COM /Ex/Exp
+21410   COM /Freqinfo/Freq(*),Numfreqs,Freqremeasured(*),Levels(*)
+21420   FOR I=1 TO Numfreqs
+21430     IF Ans<9 OR Ans=14 THEN P(I)=Avgs(I,1,N)-Avgs(I,1,Dif)*(Dif>1)
+21440     IF Ans>9 AND Ans<>14 THEN P(I)=Stddev(I,1,N)-Stddev(I,1,Dif)*(Dif>1)
+21450   NEXT I
+21460   CALL Plotlimits(P(*),Lx,Hx,Ly,Hy,E,S,L$,Numfreqs,Freq(*),Exp,Qua,G)
+21470   CALL Plot(Numfreqs,Freq(*),P(*))
+21480 SUBEND !................... Plotarrg ...................................
+21490 Plot: SUB Plot(Numfreqs,Freq(*),P(*))
+21500   PEN 1
+21510   FOR I=1 TO Numfreqs
+21520     PLOT Freq(I),P(I)
+21530   NEXT I
+21540 SUBEND !................... Plot .......................................
+21550 Linesscale: SUB Linesscale(H,S,P,Lg,Lr,Lx,Hx,Ly,Hy,E,Hd,Vd,G)
+21560   ! Draws base lines and scale.
+21570   !
+21580   OPTION BASE 1
+21590   DIM B$(7)[8]
+21600   PEN 1
+21610   CLIP OFF
+21620   LORG Lg
+21630   LDIR Lr
+21640   DATA MD.2DE,MD.2DESZ,M.3D,MD.2D,M2D.D,M3D,MD.2DE
+21650   READ B$(*)
+21660   IF E<-3 THEN E=-3
+21670   IF E>3 THEN E=3
+21680   MOVE Lx,Ly
+21690   IF H THEN DRAW Hx,Ly
+21700   IF H=0 THEN DRAW Lx,Hy
+21710   FOR I=0 TO S
+21720     IF H THEN
+21730       MOVE Lx+Hd*I/S,Ly
+21740       DRAW (Lx+Hd*I/S),(Ly-Vd*.04)
+21750       IF G=1 THEN DRAW Lx+Hd*I/S,Hy                    ! Grid
+21760       MOVE (Lx+Hd*I/S),(Ly-Vd*.05)
+21770       IF I=0 OR I=5 OR I=10 THEN LABEL VAL$(Lx+Hd*I/S)
+21780     ELSE
+21790       MOVE Lx,Ly+Vd*I/S
+21800       DRAW (Lx-Hd*.02),(Ly+Vd*I/S)
+21810       IF G=1 THEN DRAW Hx,Ly+Vd*I/S                  ! Grid
+21820       MOVE (Lx-Hd*.03),(Ly+Vd*I/S)
+21830       LABEL USING B$(E+4);Ly+Vd*I/S
+21840     END IF
+21850   NEXT I
+21860 SUBEND !................... Linesscale .................................
+21870 Limitsforwn: SUB Limitsforwn(P(*),Lx,Hx,Ly,Hy,E,Se)
+21880   ! Finds limits for window.
+21890   !
+21900   OPTION BASE 1
+21910   COM /Freqinfo/Freq(*),Numfreqs,Freqremeasured(*),Levels(*)
+21920   ALLOCATE H(6)
+21930   MAT SEARCH P(*),MAX;Ma          ! Find
+21940   MAT SEARCH P(*),MIN;Mi          ! extremes.
+21950   M=MAX(ABS(Ma),ABS(Mi))
+21960   IF M=0 THEN
+21970     Se=2
+21980     Hy=1.E-4
+21990     Ly=-1.E-4
+22000     E=-5
+22010   ELSE
+22020     E=INT(LGT(ABS(M)))                          ! Nearest rounded numbers
+22030     Hy=(INT(Ma*10^(2-E))+(SGN(Ma)=1))*10^(E-2)  ! above and
+22040     Ly=(INT(Mi*10^(2-E)))*10^(E-2)              ! below Y extremes.
+22050   !
+22060     FOR S=3 TO 8                              ! Set high rounded number
+22070       H(S-2)=Hy
+22080       LOOP                                    ! so that scale will work
+22090       EXIT IF ((H(S-2)-Ly)*10^(2-E)) MOD S<.01 OR ABS(((H(S-2)-Ly)*10^(2-E)) MOD S-S)<.1
+22100         H(S-2)=H(S-2)+10^(E-2)                ! with the best of 5 to 8
+22110       END LOOP
+22120     NEXT S                                    ! major divisions (with
+22130     MAT SEARCH H(*) DES,LOC MIN;Se
+22140     Hy=H(Se)                                  ! priority on 8).
+22150     Se=Se+2
+22160   END IF
+22170   Lx=Freq(1)
+22180   Hx=Freq(Numfreqs)
+22190   WINDOW Lx,Hx,Ly,Hy
+22200 SUBEND !................... Limitsforwn ................................
+22210 Labels: SUB Labels(Lx,Hx,Ly,Hy,Hd,Vd,L$,Exp,Qua)
+22220   ! Lables on plot
+22230   !
+22240   ! Inputs: Low and High X and Y plot limits, horizontal and vertical
+22250   !           differences
+22260   !         L$ - Label for plot.
+22270   !         Exp - 1 - Expanded graphics dump
+22280   !               0 - Normal graphics dump
+22290   !         Qua - 1 - Quadrant plotting
+22300   !               0 - Full scale
+22310   !
+22320   ! Outputs: Label L$&"vs Freq, GHz"
+22330   !
+22340   DIM L1$[60]
+22350   L1$=L$&"vs Freq, GHz"
+22360   MOVE Hx-Hd/2*1.2,Ly-((Vd*.14)+Exp*(Vd*.03)*Qua)
+22370   LORG 5
+22380   LABEL L1$
+22390 SUBEND !................... Labels .....................................
+22400 Plotlimits: SUB Plotlimits(P(*),Lx,Hx,Ly,Hy,E,S,L$,Numfreqs,Freq(*),Exp,Qua,G)
+22410   ! Controls subs Limits for window
+22420   !               Lines scale
+22430   !               Labels
+22440   ! Sets vertical scale to -200 to 200 for Arg Sij
+22450   ! Sets vertical scale divisions (S) to 8 for Arg Sij
+22460   ! Sets horizontal scale divisions (S) to 10
+22470   !
+22480   CALL Limitsforwn(P(*),Lx,Hx,Ly,Hy,E,S)
+22490   IF L$[1,3]="Arg" AND POS(L$,"-")=0 THEN
+22500     Ly=-200
+22510     Hy=200
+22520     S=8
+22530     E=2
+22540     WINDOW Lx,Hx,Ly,Hy
+22550   END IF
+22560   CALL Linesscale(0,S,2,8,0,Lx,Hx,Ly,Hy,E,Hx-Lx,Hy-Ly,G)
+22570   S=10
+22580   CALL Linesscale(1,S,2,6,0,Lx,Hx,Ly,Hy,E,Hx-Lx,Hy-Ly,G)
+22590   CALL Labels(Lx,Hx,Ly,Hy,Hx-Lx,Hy-Ly,L$,Exp,Qua)
+22600 SUBEND !................... Plotlimits .................................
+22610 Selplot: SUB Selplot(K,A1$,A2$,A3$,Avgs(*),Stddev(*),I1(*),M,Numfreqs,Exp)
+22620   ! Select the desired plot mannually.
+22630   !
+22640   !
+22650   ! Outputs: K  (Ans)
+22660   !           for 2 ports:
+22670   !            0 to 3 - s parameters, S11, S12, S21, S22
+22680   !            4 - difference between S12 and S21
+22690   !            5 to 8 - arg of s parameters
+22700   !            10 to 13 - standard dev of connects of s params
+22710   !            14 - difference between arg's of S12 and S21
+22720   !            15 to 18 - standard dev of connects of arg's of s params
+22730   !           for 1 ports:
+22740   !            0 - |Gamma|
+22750   !            1 - Arg Gamma
+22760   !            10 - standard dev of connects of Gamma
+22770   !            11 - standard dev of connects of arg gamma
+22780   !          Qua - 1 - four plots to the screen
+22790   !                0 - full scale
+22800   !
+22810   COM /Qua/Qua,G
+22820   CALL Controut1(1,19,"(Key labels will be off after plot is started, press any softkey to continue.)","K")
+22830 Ps: IF K=-1 THEN CALL Keyques("Plot?",Ans,A1$&A2$,"0",0,"Ps")
+22840   IF Ans=19 THEN PAUSE
+22850   CALL Controut1(1,19,RPT$(" ",80),"K")
+22860   IF K=-1 THEN K=Ans
+22870   IF K=9 THEN Qua=1
+22880   IF K<>9 THEN
+22890     Qua=0
+22900     KEY LABELS OFF
+22910     IF Exp=0 THEN CALL Vwpt(0)
+22920     IF Exp=1 THEN CALL Vwptexp(0)
+22930     CALL Selaryplt(K,Avgs(*),Stddev(*),M,Numfreqs)
+22940   END IF
+22950   IF K=9 THEN CALL Fourplots(Avgs(*),Stddev(*),A1$,A3$,I1(*),M,Numfreqs,Exp,0)
+22960 SUBEND !................... Selplot ....................................
+22970 Vwptexp: SUB Vwptexp(I)
+22980   ! Viewport for full scale or quadrant plotting.  Expanded dump.
+22990   ! (expanded dump will truncate everything above 80% of Y scale.)
+23000   !
+23010   IF I THEN CSIZE 2.5,.4
+23020   PEN 1
+23030   V=7/8
+23040   SELECT I
+23050   CASE =0
+23060     VIEWPORT 0,95*RATIO,0,80*V
+23070     FRAME
+23080     VIEWPORT 22,95*RATIO-3,12*V,78*V   ! 0
+23090   CASE =1
+23100     VIEWPORT 0,95*RATIO/2,40*V,80*V
+23110     FRAME
+23120     VIEWPORT 13,95*RATIO/2-2,47*V,78*V   ! 1
+23130   CASE =2
+23140     VIEWPORT 95*RATIO/2,95*RATIO,40*V,80*V
+23150     FRAME
+23160     VIEWPORT 95*RATIO/2+13,95*RATIO-2,47*V,78*V ! 2
+23170   CASE =3
+23180     VIEWPORT 0,95*RATIO/2,0,40*V
+23190     FRAME
+23200     VIEWPORT 13,95*RATIO/2-2,7*V,38*V  ! 3
+23210   CASE =4
+23220     VIEWPORT 95*RATIO/2,95*RATIO,0,40*V
+23230     FRAME
+23240     VIEWPORT 95*RATIO/2+13,95*RATIO-2,7*V,38*V  ! 4
+23250   END SELECT
+23260 SUBEND !................... Vwptexp ....................................
+23270 Autoplt2p: SUB Autoplt2p(Avgs(*),Stddev(*),A1$,A2$,I1(*),Numfreqs,Exp)
+23280   ! Set selection of plots for 2 port devices (to be dumped    __________
+23290   !  to a printer from the screen).                           |          |
+23300   !                                                           |  1    2  |
+23310   ! Outputs: I1(*) - 4 numbers, one for each        Quadrants:|          |
+23320   !                   quadrant.                               |  3    4  |
+23330   !                  Each number representing a plot          |__________|
+23340   !                   parameter
+23350   !                     0 to 3 - s parameters, S11, S12, S21, S22
+23360   !                     4 - difference between S12 and S21
+23370   !                     5 to 8 - arg of s parameters
+23380   !                     10 to 13 - standard dev of connects of s params
+23390   !                     14 - difference between arg's of S12 and S21
+23400   !                     15 to 18 - standard dev of connects of arg's of
+23410   !                       s params
+23420   OPTION BASE 1
+23430   DATA 0,1,2,3,  5,6,7,8,  10,11,12,13,  15,16,17,18, 4,14,17,18
+23440   FOR I=1 TO 5
+23450     READ I1(*)
+23460     CALL Fourplots(Avgs(*),Stddev(*),A1$,A2$,I1(*),8,Numfreqs,Exp,1)
+23470   NEXT I
+23480 SUBEND !................... Autoplt2p ..................................
+23490 !
+23500 Manplts: SUB Manplts(K1,K2,K3,I1(*),Exp,A1$,A2$,A3$,Avgs(*),Stddev(*),M,Numfreqs)
+23510   ! Mannual set up for plots.
+23520   !
+23530   OPTION BASE 1
+23540   DATA -1,-1,-1,-1,-1,-1
+23550   READ K1,K2,I1(*)
+23560   REPEAT
+23570     CSIZE 4,.5
+23580     CLEAR SCREEN
+23590     KBD CMODE ON
+23600     IF Ans<>3 THEN Exp=0
+23610     IF Ans=3 THEN Exp=1
+23620     WINDOW 0,RATIO*100,0,100
+23630     IF M=1 THEN
+23640       A1$="00  |G| /Std dev;01Arg(G)/Std dev;10;11;19;"
+23650       A2$="094plots;"
+23660       A3$=""
+23670       CALL Selplot(K1,A1$,A2$,A3$,Avgs(*),Stddev(*),I1(*),8*(M=2)+2*(M=1),Numfreqs,Exp)
+23680     END IF
+23690     IF M=2 THEN
+23700       A1$="00  S11 /Std dev;01  S12 /Std dev;02  S21 /Std dev;03  S22 /Std dev;04S12-S21/ArgDif;05ArgS11/Std dev;06ArgS12/Std dev;07ArgS21/Std dev;"
+23710       A2$="08ArgS22/Std dev;094 plots;10;11;12;13;14;15;16;17;18;19;"
+23720       A3$="08ArgS22/Std dev;10;11;12;13;14;15;16;17;18;19;"
+23730       CALL Selplot(K2,A1$,A2$,A3$,Avgs(*),Stddev(*),I1(*),8*(M=2)+2*(M=1),Numfreqs,Exp)
+23740     END IF
+23750     CALL Dumpgphs(K1,K2,K3,I1(*),Ans)
+23760   UNTIL Ans=1
+23770 SUBEND !................... Manplts ....................................
+23780 Sim: SUB Sim(Numfreqs,Fstart,Fstop,Meastype$,Freq(*),Spid$,Sp)
+23790   ! Simulated data to D8536(*)
+23800   !
+23810   OPTION BASE 1
+23820   COM /Meascontrol/Numrepeats,Numconnects,Numphases
+23830   COM /N/Nonrecip,D8536(*),Averon,First,Calset
+23840   Numconnects=2
+23850   Numfreqs=51
+23860   Nonrecip=0
+23870   REDIM Freq(Numfreqs)
+23880   FOR I=1 TO Numfreqs
+23890     Freq(I)=I+1  ! 2 to 52
+23900   NEXT I
+23910   Meastype$="2-port"
+23920   Numrepeats=1
+23930   CALL Genr8data(Numconnects,Numfreqs)
+23940   Spid$="12345678"
+23950   Sp=1 ! Forward
+23960 SUBEND !................... Sim ........................................
+23970 Genr8data: SUB Genr8data(Numconnects,Numfreqs)
+23980   ! Generate data for D8536(*)
+23990   !
+24000   OPTION BASE 1
+24010   COM /N/Nonrecip,D8536(*),Averon,First,Calset
+24020   COM /Fi/F
+24030   DIM M(4)
+24040   IF A=0 THEN  ! F
+24050     REDIM D8536(Numconnects,Numfreqs,9)
+24060     FOR Nc=1 TO Numconnects
+24070 G:    DATA 200,200,200,200
+24080       RESTORE G
+24090       READ M(*)
+24100       FOR Fq=1 TO Numfreqs
+24110         D8536(Nc,Fq,1)=Fq+1  ! 2 to 52  freqs
+24120         FOR J=2 TO 8 STEP 2
+24130           CALL Stufdata(D8536(*),Nc,Fq,J,M(*))
+24140         NEXT J
+24150       NEXT Fq
+24160     NEXT Nc
+24170   END IF
+24180   F=1
+24190 SUBEND !................... Genr8data ..................................
+24200 !
+24210 Stufdata: SUB Stufdata(D8536(*),Nc,Fq,J,M(*))
+24220   ! Simulated data to D8536(*)
+24230   !
+24240   D8536(Nc,Fq,J)=1+Fq/1000+Nc/200+9*(J=4 OR J=6)              ! |Sij|
+24250   D8536(Nc,Fq,J+1)=M(J/2)-20*Fq                               ! Arg Sij
+24260   IF (M(J/2)-20*Fq)<=-180 THEN M(J/2)=M(J/2)+380
+24270 SUBEND !................... Stufdata ...................................
+24280 !
+24290 !******************
+24300 SUB Resetana(@Vna)
+24310 !******************
+24320 !
+24330 Resetana: OPTION BASE 1
+24340   !
+24350   ! Reset the Network Analyzer:
+24360   !
+24370   CALL Set_sweep_mode(@Vna,"CONTINUOUS")
+24380   CALL Set_trig_source(@Vna,"IMMEDIATE")
+24390   LOCAL @Vna
+24400 SUBEND ! Resetana
+24410 !
+24420 !********************************************************************************************************
+24430 SUB Setuptakedata(Remeasure,P$,Meastime$,Measfile$(*),Dataindex(*),D8536(*),@Anal,Calset,Sparam_list$(*))
+24440 !********************************************************************************************************
+24450 !
+24460 Setuptakedata: OPTION BASE 1
+24470   ! System setup and take data.
+24480   !
+24490   ! Controls subs Set analyzer
+24500   !               State
+24510   !               Createmeasfile
+24520   !               Transfer data from analyzer, Store results, restore
+24530   !                 status, purge ram file.
+24540   !
+24550 ! CALL Setana(@Anal,Calset) ! set analyzer for cal set #.
+24560   CALL Createmeasfile(Remeasure,P$,Meastime$,Measfile$(*),Dataindex(*),D8536(*),@Anal,Calset,Startindexarray)
+24570   CALL Xtstostapg(@Anal,Dataindex(*),D8536(*),Measfile$(*),Startindexarray,Calset,Sparam_list$(*))
+24580   !
+24590 SUBEND ! Setuptakedata
+24600 !
+24610 !*************************
+24620 SUB Set_avgs(@Vna,No_avgs)
+24630 !*************************
+24640 !
+24650 Set_avgs: OPTION BASE 1
+24660   !
+24670   OUTPUT @Vna;":SENSE:AVERAGE:COUNT ";No_avgs
+24680   !
+24690 SUBEND ! Set_avgs
+24700 !
+24710 !************************************************************************
+24720 SUB Freq_info(@Vna,Units$,No_of_points,Start_freq,Stop_freq,Freq_list(*))
+24730 !************************************************************************
+24740 !
+24750 Freq_info: OPTION BASE 1
+24760   !
+24770   ! This subroutine returns the global start and
+24780   ! stop frequencies in Units$, the total No. of points
+24790   ! and a REDIM array of the frequencies in Units$.
+24800   !
+24810   INTEGER No_of_bytes,Bytes_per_recrd
+24820   !
+24830   OUTPUT @Vna;":SENSE:FREQUENCY:START?"  !Hz
+24840   ENTER @Vna;Start_freq_hz
+24850   !
+24860   OUTPUT @Vna;":SENSE:FREQUENCY:STOP?"   !Hz
+24870   ENTER @Vna;Stop_freq_hz
+24880   !
+24890   OUTPUT @Vna;":SENSE:SWEEP:POINTS?"
+24900   ENTER @Vna;No_of_points
+24910   !
+24920   ALLOCATE Freq_list_hz(No_of_points)
+24930   REDIM Freq_list(No_of_points)
+24940   !
+24950   OUTPUT @Vna;":FORMAT:DATA REAL,64"  !IEEE 64 BIT FLOATING POINT FORMAT
+24960   OUTPUT @Vna;":SENSE:X:VALUES?"      !QUERY STIMULUS (X AXIS) VALUES
+24970   !
+24980   ENTER @Vna USING "%,A";Block_header$
+24990   ENTER @Vna USING "%,D";No_of_bytes
+25000   ENTER @Vna USING "%,"&VAL$(No_of_bytes)&"D";Bytes_per_recrd
+25010   !
+25020   ASSIGN @Vna;FORMAT OFF       !DIRECTS COMPUTER TO USE INTERNAL REPRESENTATION
+25030   ENTER @Vna;Freq_list_hz(*)   !Hz
+25040   ASSIGN @Vna;FORMAT ON
+25050   ENTER @Vna;Null_string$
+25060   !
+25070   SELECT Units$
+25080   CASE "Hz"
+25090     Start_freq=Start_freq_hz
+25100     Stop_freq=Stop_freq_hz
+25110     MAT Freq_list=Freq_list_hz
+25120   CASE "kHz"
+25130     Start_freq=Start_freq_hz/1000
+25140     Stop_freq=Stop_freq_hz/1000
+25150     MAT Freq_list=Freq_list_hz/(1000)
+25160   CASE "MHz"
+25170     Start_freq=Start_freq_hz/1000000
+25180     Stop_freq=Stop_freq_hz/1000000
+25190     MAT Freq_list=Freq_list_hz/(1000000)
+25200   CASE "GHz"
+25210     Start_freq=Start_freq_hz/1000000000
+25220     Stop_freq=Stop_freq_hz/1000000000
+25230     MAT Freq_list=Freq_list_hz/(1000000000)
+25240   END SELECT
+25250   DEALLOCATE Freq_list_hz(*)
+25260   !
+25270 SUBEND ! Freq_info
+25280 !
+25290 !***************************************************
+25300 SUB Define_traces(@Vna,Meastype$,Sp,Sparam_list$(*))
+25310 !***************************************************
+25320 !
+25330 Define_traces: OPTION BASE 1
+25340   !          
+25350   ! The Traces required for a measurement are determined
+25360   ! by the variables Meastype$ and Sp.
+25370   !
+25380   ! Meastype$:   "1-port"       |         "2-port"
+25390   !
+25400   ! Sp     1 :    Port 1        |      Forward Direction
+25410   ! Sp     2 :    Port 2        |      Reverse Direction
+25420   !
+25430   !
+25440   ! Sparam_list$:   Column 1    |    Column 2    |     Column 3
+25450   !               S parameter   |  Measurement   |     Trace No.
+25460   !                                   Name
+25470   !
+25480   !
+25490   OUTPUT @Vna;":CALCULATE:PARAMETER:DELETE:ALL" !CLEAR ALL PRE-DEFINED PARAMETERS
+25500   !
+25510   SELECT Meastype$
+25520   CASE "1-port"
+25530     IF Sp=1 THEN
+25540       OUTPUT @Vna;":CALCULATE:PARAMETER:DEFINE:EXTENDED 'CH1_S11_1',S11"
+25550       OUTPUT @Vna;":CALCULATE:PARAMETER:SELECT 'CH1_S11_1'"
+25560       OUTPUT @Vna;":DISPLAY:WINDOW:TRACE1:FEED 'CH1_S11_1'"
+25570       OUTPUT @Vna;":DISPLAY:WINDOW:TRACE1:STATE ON"
+25580       !
+25590       Sparam_list$(1,1)="S11"         !S PARAMETER
+25600       Sparam_list$(1,2)="'CH1_S11_1'" !MEASUREMENT NAME
+25610       Sparam_list$(1,3)="1"           !TRACE NO.
+25620     END IF
+25630     IF Sp=2 THEN
+25640       OUTPUT @Vna;":CALCULATE:PARAMETER:DEFINE:EXTENDED 'CH1_S22_4',S22"
+25650       OUTPUT @Vna;":CALCULATE:PARAMETER:SELECT 'CH1_S22_4'"
+25660       OUTPUT @Vna;":DISPLAY:WINDOW:TRACE4:FEED 'CH1_S22_4'"
+25670       OUTPUT @Vna;":DISPLAY:WINDOW:TRACE4:STATE ON"
+25680       !
+25690       Sparam_list$(4,1)="S22"
+25700       Sparam_list$(4,2)="'CH1_S22_4'"
+25710       Sparam_list$(4,3)="4"
+25720     END IF
+25730   CASE "2-port"
+25740     OUTPUT @Vna;":CALCULATE:PARAMETER:DEFINE:EXTENDED 'CH1_S11_1',S11"
+25750     OUTPUT @Vna;":CALCULATE:PARAMETER:DEFINE:EXTENDED 'CH1_S21_2',S21"
+25760     OUTPUT @Vna;":CALCULATE:PARAMETER:DEFINE:EXTENDED 'CH1_S12_3',S12"
+25770     OUTPUT @Vna;":CALCULATE:PARAMETER:DEFINE:EXTENDED 'CH1_S22_4',S22"
+25780     !     
+25790     OUTPUT @Vna;":CALCULATE:PARAMETER:SELECT 'CH1_S11_1'"
+25800     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE1:FEED 'CH1_S11_1'"
+25810     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE1:STATE ON"
+25820     !
+25830     OUTPUT @Vna;":CALCULATE:PARAMETER:SELECT 'CH1_S21_2'"
+25840     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE2:FEED 'CH1_S21_2'"
+25850     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE2:STATE ON"
+25860     !
+25870     OUTPUT @Vna;":CALCULATE:PARAMETER:SELECT 'CH1_S12_3'"
+25880     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE3:FEED 'CH1_S12_3'"
+25890     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE3:STATE ON"
+25900     !
+25910     OUTPUT @Vna;":CALCULATE:PARAMETER:SELECT 'CH1_S22_4'"
+25920     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE4:FEED 'CH1_S22_4'"
+25930     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE4:STATE ON"
+25940     !
+25950     Sparam_list$(1,1)="S11"
+25960     Sparam_list$(1,2)="'CH1_S11_1'"
+25970     Sparam_list$(1,3)="1"
+25980     !
+25990     Sparam_list$(2,1)="S21"
+26000     Sparam_list$(2,2)="'CH1_S21_2'"
+26010     Sparam_list$(2,3)="2"
+26020     !
+26030     Sparam_list$(3,1)="S12"
+26040     Sparam_list$(3,2)="'CH1_S12_3'"
+26050     Sparam_list$(3,3)="3"
+26060     !
+26070     Sparam_list$(4,1)="S22"
+26080     Sparam_list$(4,2)="'CH1_S22_4'"
+26090     Sparam_list$(4,3)="4"
+26100     !
+26110   END SELECT ! Meastype$
+26120   !
+26130 SUBEND ! Define_traces
+26140 !
+26150 !************************************
+26160 SUB Read_calsets(@Vna,Cset_array$(*))
+26170 !************************************
+26180 !
+26190 Read_calsets: OPTION BASE 1
+26200   !        
+26210   INTEGER I,J,Str_len
+26220   INTEGER Found,Scan
+26230   INTEGER Cset_total,New_total
+26240   !
+26250   DIM Calset_catalog$[128],Cset$[20]
+26260   !
+26270   ALLOCATE Temp_array$(30)[20]
+26280   !
+26290   OUTPUT @Vna;":SENSE:CORRECTION:CSET:CATALOG? NAME"
+26300   ENTER @Vna;Calset_catalog$
+26310   Calset_catalog$=TRIM$(Calset_catalog$)                   ! ELIMINATE SPACES
+26320   Calset_catalog$=Calset_catalog$[2,LEN(Calset_catalog$)-1]! ELIMINATE QUOTATION MARKS
+26330   IF Calset_catalog$="NO CATALOG" THEN
+26340     KEY LABELS OFF
+26350     LINPUT "NO CAL SETS ARE CURRENTLY AVAILABLE. HIT RETURN TO CONTINUE...",Null_input$
+26360     KEY LABELS ON
+26370     SUBEXIT
+26380   END IF
+26390   !
+26400   !CREATE A TEMP ARRAY THAT CONTAINS A LIST OF CALIBRATIONS:
+26410   Scan=1
+26420   Cset_total=1
+26430   REPEAT
+26440     Found=POS(Calset_catalog$[Scan],",")
+26450     IF Found THEN
+26460       Temp_array$(Cset_total)=Calset_catalog$[Scan,Scan+Found-2]
+26470       Scan=Scan+Found
+26480       Cset_total=Cset_total+1
+26490     ELSE
+26500       Temp_array$(Cset_total)=Calset_catalog$[Scan]
+26510     END IF
+26520   UNTIL NOT Found
+26530   !
+26540   !ELIMINATE CAL REGISTERS FROM THE ARRAY:
+26550   New_total=Cset_total
+26560   I=1
+26570   FOR J=1 TO Cset_total
+26580     Str_len=LEN(Temp_array$(J))
+26590     IF Str_len>=10 THEN
+26600       IF Temp_array$(J)[Str_len-5]="CALREG" THEN
+26610         New_total=New_total-1
+26620       END IF
+26630     ELSE
+26640       Cset_array$(I,1)=Temp_array$(J)
+26650       Cset_array$(I,2)="0"                      !CALSET FLAG INITIALIZED TO "OFF"
+26660       I=I+1
+26670     END IF
+26680   NEXT J
+26690   REDIM Cset_array$(New_total,2)
+26700   !
+26710   DEALLOCATE Temp_array$(*)
+26720   !
+26730 SUBEND ! Read_calsets
+26740 !
+26750 !**********************************************
+26760 SUB Activate_calset(@Vna,Cset_array$(*),Calset)
+26770 !**********************************************
+26780 !
+26790 Activate_calset: OPTION BASE 1
+26800   !            
+26810   INTEGER No_of_calsets
+26820   !
+26830   No_of_calsets=SIZE(Cset_array$,1)
+26840   !
+26850   Cset$=""""&Cset_array$(Calset,1)&""""          ! CALSET NAME MUST BE ENCLOSED BY QUOTES
+26860   !
+26870   !Clear the CALSET ON Flags:
+26880   FOR I=1 TO No_of_calsets
+26890     Cset_array$(I,2)="0"
+26900   NEXT I
+26910   Cset_array$(Calset,2)="1"                      ! 1 = CALSET FLAG SET TO "ON"
+26920   !
+26930   OUTPUT @Vna;":SENSE:CORRECTION:CSET:ACTIVATE "&Cset$&", ON"
+26940   OUTPUT @Vna;":SENSE:CORRECTION:INTERPOLATE:STATE OFF"
+26950   !
+26960 SUBEND ! Activate_calset
+26970 !
+26980 !***********************************************
+26990 SUB Display_calsets(Meastype$,Sp,Cset_array$(*))
+27000 !***********************************************
+27010 !
+27020 Display_calsets: OPTION BASE 1
+27030   !          
+27040   INTEGER No_of_calsets
+27050   !
+27060   No_of_calsets=SIZE(Cset_array$,1)
+27070   !
+27080   PRINT "INDEX     CALIBRATON SETS"
+27090   PRINT
+27100   !
+27110   FOR I=1 TO No_of_calsets
+27120     PRINT USING "DDD,8X,15A";I,Cset_array$(I,1)
+27130   NEXT I
+27140   PRINT
+27150   !
+27160 SUBEND ! Display_calsets
+27170 !
+27180 !******************
+27190 SUB Opc_query(@Vna)
+27200 !******************
+27210 Opc_query: INTEGER Opc_bit
+27220   !     
+27230   OUTPUT @Vna;"*OPC?"   ! IEEE 488.2 Query: Operation Complete?
+27240   ENTER @Vna;Opc_bit    ! Clear the Output Queue in the VNA
+27250   !
+27260 SUBEND ! Opc_query
+27270 !
+27280 !**************************************************
+27290 SUB Clear_traces(@Vna,Meastype$,Sp,Sparam_list$(*))
+27300 !**************************************************
+27310 !
+27320 Clear_traces:!
+27330   !         
+27340   IF Meastype$="1-port" THEN
+27350     SELECT Sp
+27360     CASE 1
+27370       OUTPUT @Vna;":DISPLAY:WINDOW:TRACE"&Sparam_list$(1,3)[1,1]&":STATE OFF"
+27380     CASE 2
+27390       OUTPUT @Vna;":DISPLAY:WINDOW:TRACE"&Sparam_list$(4,3)[1,1]&":STATE OFF"
+27400     END SELECT
+27410   ELSE
+27420     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE"&Sparam_list$(1,3)[1,1]&":STATE OFF"
+27430     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE"&Sparam_list$(2,3)[1,1]&":STATE OFF"
+27440     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE"&Sparam_list$(3,3)[1,1]&":STATE OFF"
+27450     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE"&Sparam_list$(4,3)[1,1]&":STATE OFF"
+27460   END IF
+27470   !
+27480 SUBEND ! Clear_traces
+27490 !
+27500 !****************************************************
+27510 SUB Display_traces(@Vna,Meastype$,Sp,Sparam_list$(*))
+27520 !****************************************************
+27530 !
+27540 Display_traces:!
+27550   !           
+27560   IF Meastype$="1-port" THEN
+27570     SELECT Sp
+27580     CASE 1
+27590       OUTPUT @Vna;":DISPLAY:WINDOW:TRACE"&Sparam_list$(1,3)[1,1]&":STATE ON"
+27600     CASE 2
+27610       OUTPUT @Vna;":DISPLAY:WINDOW:TRACE"&Sparam_list$(4,3)[1,1]&":STATE ON"
+27620     END SELECT
+27630   ELSE
+27640     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE"&Sparam_list$(1,3)[1,1]&":STATE ON"
+27650     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE"&Sparam_list$(2,3)[1,1]&":STATE ON"
+27660     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE"&Sparam_list$(3,3)[1,1]&":STATE ON"
+27670     OUTPUT @Vna;":DISPLAY:WINDOW:TRACE"&Sparam_list$(4,3)[1,1]&":STATE ON"
+27680   END IF
+27690   !
+27700 SUBEND ! Display_traces
+27710 !
+27720 !*************************************
+27730 SUB Set_trig_source(@Vna,Trig_source$)
+27740 !*************************************
+27750 !
+27760 Set_trig_source: OPTION BASE 1
+27770   !            
+27780   ! Sets the source of the sweep trigger signal.
+27790   !
+27800   ! Options for Trig_source$:
+27810   ! IMMEDIATE - internal source sends continuous trigger signals
+27820   ! MANUAL    - sends one trigger signal when manually triggered with INIT:IMM
+27830   !
+27840   OUTPUT @Vna;":TRIGGER:SEQUENCE:SOURCE "&Trig_source$
+27850   !
+27860 SUBEND ! Set_trig_source
+27870 !
+27880 !***********************************
+27890 SUB Set_sweep_mode(@Vna,Sweep_mode$)
+27900 !***********************************
+27910 !
+27920 Set_sweep_mode: OPTION BASE 1
+27930   !           
+27940   ! Sets the number of trigger signals the channel will ACCEPT.
+27950   !
+27960   ! Options for Sweep_mode$:
+27970   ! HOLD       - channel will not trigger
+27980   ! CONTINUOUS - channel triggers indefinitely
+27990   ! SINGLE     - channel accepts one trigger, then goes to HOLD
+28000   !
+28010   OUTPUT @Vna;":SENSE:SWEEP:MODE "&Sweep_mode$
+28020   !
+28030 SUBEND ! Set_sweep_mode
+28040 !
+28050 !********************************************
+28060 SUB Sweep_query(@Vna,Sweep_type$,Sweep_mode$)
+28070 !********************************************
+28080 !
+28090 Sweep_query: OPTION BASE 1
+28100   !       
+28110   OUTPUT @Vna;":SENSE:SWEEP:TYPE?"
+28120   ENTER @Vna;Sweep_type$
+28130   OUTPUT @Vna;":SENSE:SWEEP:MODE?"
+28140   ENTER @Vna;Sweep_mode$
+28150   !
+28160 SUBEND ! Sweep_query
+28170 !
+28180 !********************
+28190 SUB Trigger_vna(@Vna)
+28200 !********************
+28210 !
+28220 Trigger_vna: OPTION BASE 1
+28230   !
+28240   OUTPUT @Vna;"ABORT"
+28250   OUTPUT @Vna;":INITIATE:IMMEDIATE"  ! Overlapped Command requires
+28260   OUTPUT @Vna;"*WAI"                 ! WAIT until operation is complete.
+28270   !
+28280 SUBEND ! Trigger_vna
+28290 !
+28300 !*************************************
+28310 SUB Query_avgs(@Vna,INTEGER Avg_count)
+28320 !*************************************
+28330 !
+28340 Query_avgs: OPTION BASE 1
+28350   !       
+28360   OUTPUT @Vna;":SENSE:AVERAGE:COUNT?"
+28370   ENTER @Vna;Avg_count
+28380   !
+28390 SUBEND ! Query_avgs
+28400 !
+28410 !***********************************
+28420 SUB Select_format(@Vna,Active_spar$)
+28430 !***********************************
+28440 !
+28450 Select_format: OPTION BASE 1
+28460   !          
+28470   SELECT Active_spar$
+28480   CASE "S11","S22"
+28490     OUTPUT @Vna;":CALCULATE:FORMAT MLIN"
+28500   CASE ELSE
+28510     OUTPUT @Vna;":CALCULATE:FORMAT MLOG"
+28520   END SELECT
+28530   WAIT .5
+28540   !
+28550 SUBEND ! Select_format
+28560 !
+28570 !*******************
+28580 SUB Reset_avgs(@Vna)
+28590 !*******************
+28600 !
+28610 Reset_avgs: OUTPUT @Vna;":SENSE:AVERAGE:CLEAR"
+28620   WAIT .5
+28630   !
+28640 SUBEND ! Reset_avgs
+28650 !
+28660 !***************************************
+28670 SUB Query_selection(@Vna,Selected_meas$)
+28680 !***************************************
+28690 !
+28700 Query_selection: OPTION BASE 1
+28710   !
+28720   OUTPUT @Vna;":CALCULATE:PARAMETER:SELECT?"
+28730   ENTER @Vna;Selected_meas$
+28740   Selected_meas$=Selected_meas$[2,LEN(Selected_meas$)-1] ! ELIMINATE QUOTES
+28750   !
+28760 SUBEND ! Query_selection
+28770 !
+</script>
+
+</code></pre>
+
+<script src="prism.js" data-default-language="markup"></script>
+</body>
+</html>

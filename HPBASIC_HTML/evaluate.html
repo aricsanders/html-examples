@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>evaluate.txt</title>
+    <link href="prism.css" rel="stylesheet" />
+</head>
+<body>
+<h1> A highlighted Plain Text version of evaluate.txt Basic Program</h1>
+<pre><code class="language-basic"><script>2!         RE-STORE "EVALUATE"
+4!
+6     Company$="Your lab" !set default company name here (10 characters max)
+8     Rev$="2.03  "
+10    CLEAR SCREEN
+12    PRINT "****************************************************************************"
+14    PRINT "*                                                                          *"
+16    PRINT "*                   NIST/Industrial MMIC Consortium                        *"
+18    PRINT "*                                                                          *"
+20    PRINT "*                   Program EVALUATE - revision "&Rev$&"                      *"
+22    PRINT "*                                                                          *"
+24    PRINT "*     This program, when used with NIST artifacts and other software,      *"
+26    PRINT "*     evaluates probe station instrument drift and the ability of the      *"
+28    PRINT "*     probe station and network analyzer to accurately reproduce           *"
+30    PRINT "*     measurements made at NIST. This program does not verify the          *"
+32    PRINT "*     suitability of the calibration for the intended measurement.         *"
+34    PRINT "*     The use of calibrations not suitable for the intended measurement    *"
+36    PRINT "*     is often the dominant source of measurement error. NIST supports     *"
+38    PRINT "*     a suite of tools to evaluate the suitability of the calibration.     *"
+40    PRINT "*     Please refer to the accompanying documentation for a description     *"
+42    PRINT "*     of these methods.                                                    *"
+44    PRINT "*                                                                          *"
+46    PRINT "****************************************************************************"
+48    OPTION BASE 1
+50    COM /Srm/Control$[10],Srm_num$[10]
+52    COM /Graph/Igraph,Iswap,Iplot,Filename$(15)[10],Company$[10],Ref_lab$[10],Measured(15)
+54    DIM Din_gn(2000,9),Din_g(2000,9),Din_tn(2000,9),Ans$[40],Ans1$[40]
+56  !
+58  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+60 Ask_again: !determine analysis type
+62    Ans$="V"
+64    PRINT
+66    PRINT
+68    PRINT "Use 'V' to verify your instrumentation using NIST SRMs of type CPW04 (Std. option)"
+70    PRINT "Use 'O' for old standards types CPW01 and CPW02"
+72    PRINT "Use 'N' only at NIST for SRM analysis"
+74    OUTPUT 2 USING "#,K";Ans$;CHR$(255);"H"
+76    INPUT "Input 'V' for instrument verification, 'M' for older standards, 'N' for NIST SRM analysis",Ans$
+78    Ans$=TRIM$(Ans$)
+80    SELECT Ans$
+82    CASE "V","v","O","o"
+84      Srm=0
+86      PRINT
+88      PRINT "Use 'S' for standard analysis procedures."
+90      PRINT "Use 'E' for external NIST calibration procedures."
+92 Ask_again2: Ans1$="S"
+94      OUTPUT 2 USING "#,K";Ans1$;CHR$(255);"H"
+96      INPUT "Input 'S' for standard analysis (default), 'E' for external NIST analysis",Ans1$
+98      Ans1$=TRIM$(Ans1$)
+100     SELECT Ans1$
+102     CASE "s","S"
+104       Tier2=0
+106     CASE "E","e"
+108       Tier2=1
+110     CASE ELSE
+112       DISP "Input only an 'S' (default) or an 'E'!"
+114       BEEP
+116       WAIT 1
+118       GOTO Ask_again2
+120     END SELECT
+122   CASE "N","n"  !NIST SRM ANALYSIS PROCEDURE
+124     Srm=1
+126     Tier2=0
+128   CASE ELSE
+130     DISP "Input only a 'V' (default) or a 'N'!"
+132     BEEP
+134     WAIT 1
+136     GOTO Ask_again
+138   END SELECT
+140   Ref_lab$="TRW"
+142   Ref_lab$="IEMN"
+144   Ref_lab$="NIST"
+146   Igraph=9   !set to plotter address
+148   Iplot=1    !set to zero to suppress device labels at right of plots
+150   Printnum=PRT!set printer number
+152   Nor=0      !SET TO 0 FOR MAX(S(i,j)-S'(i,j)), REFL AND TRANS
+154              !SET TO 1 FOR MAX(S(i,i)-S'(i,i)) and max(S(i,j)-S'(i,j))/S(i,j))
+156   Limit=.10  !color curves if abs(S(i,j)) < limit
+158   Ireverse=0 !set to 1 to reverse user measurement ports
+160 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+162 !
+164   IF Nor=0 THEN Limit=0  !don't bother if not dividing by S(i,j)
+166   IF Ans$="O" OR Ans$="o" THEN
+168     CALL Readfile("INDG_CN",Nfreq_nist,-9,Din_gn(*))        !Nfreq=0 on error exit
+170   ELSE
+172     CALL Readfile("INDG_N",Nfreq_nist,-9,Din_gn(*))        !Nfreq=0 on error exit
+174   END IF
+176   IF Nfreq_nist=0 THEN
+178     DISP "error in reading IND_N or INDG_CN"
+180     PAUSE
+182   END IF
+184   Fileg$="INDG"           !GaAs DEVICE MEASUREMENT
+186   IF Tier2 THEN Fileg$=Fileg$&"_C"
+188   IF Srm THEN Fileg$="INDG_X"  !control measurement data.
+190   CALL Readfile(Fileg$,Nfreq,-9,Din_g(*)) !Nfreq=0 on error exit
+192   IF Nfreq=0 THEN
+194     DISP "error in reading user data "&Fileg$
+196     PAUSE
+198   END IF
+200 !search for user frequencies in list of NIST frequencies.
+202   I_first=0
+204   I_last=0
+206   FOR I=1 TO Nfreq_nist
+208     IF ABS(Din_g(1,1)-Din_gn(I,1))<1.E-6 THEN I_first=I
+210     IF ABS(Din_g(Nfreq,1)-Din_gn(I,1))<1.E-6 THEN I_last=I
+212   NEXT I
+214   IF I_first=0 OR I_last=0 OR I_last-I_first<>Nfreq-1 THEN
+216     DISP "error - frequencies do not match"
+218     PAUSE
+220   END IF
+222   IF Ans$="O" OR Ans$="o" THEN
+224     Ifile=9  !NUMBER OF GaAs FILES TO BE PROCESSED
+226   ELSE
+228     Ifile=12
+230   END IF
+232   DIM T(4),Tempg$[256],Title$[30]
+234   ALLOCATE Ver(Nfreq,2)
+236   ALLOCATE Dout_g(Nfreq,Ifile+5),Ver_gg(Nfreq,2)
+238   ALLOCATE Ver_ng(Nfreq_nist,2),Ver_x(Nfreq,2),Ver_y(Nfreq,2)
+240   ALLOCATE Verlimits(Ifile+5,3)
+242   COM /Norm/Nor,Limit
+244   IF Srm THEN
+246     OUTPUT 2 USING "#,K";"W# CS#"
+248     INPUT "Input control wafer and calibration set numbers (format: 'W# CS#')",Control$
+250     OUTPUT 2 USING "#,K";"W# CS#"
+252     INPUT "Input SRM wafer and calibration set numbers (format: 'W# CS#')",Srm_num$
+254     Company$=Control$
+256     Title$=Srm_num$
+258   ELSE
+260     OUTPUT 2 USING "#,K";Company$
+262     INPUT "Input company name (10 characters maximum length)",Company$
+264     INPUT "Input test descriptor (30 characters maximum length)",Title$
+266   END IF
+268   DISP "Processing data set "&Title$
+270   Irefl=6              !CONSIDER TRANSMISSION ONLY IN FIRST Irefl FILES
+272   Flow=.5              !Low frequency break point.
+274   Fhigh=10             !high frequency break point.
+276   IF Ans$="O" OR Ans$="o" THEN
+278     Filename$(1)="IND" !LIST OF FILES TO BE PROCESSED
+280     Filename$(2)="CAP"
+282     Filename$(3)="PAD1"
+284     Filename$(4)="PAD3"
+286     Filename$(5)="PADN"
+288     Filename$(6)="THRU"
+290     Filename$(7)="REFL"
+292     Filename$(8)="RES"
+294     Filename$(9)="RES5"
+296   ELSE
+298     Verlimits(2,1)=.1  !Limits for control experiment instrument drift, f<Flow
+300     Verlimits(2,2)=.05 !f>=Flow, f<Fhigh
+302     Verlimits(2,3)=.1  !f>=Fhigh
+304     Verlimits(3,1)=.1  !Limits for SRM experiment instrument drift, f<Flow
+306     Verlimits(3,2)=.05 !f>=Flow, f<Fhigh
+308     Verlimits(3,3)=.1  !f>=Fhigh
+310     Verlimits(4,1)=.2  !Limits for SRM vs control experiemtn, f<Flow
+312     Verlimits(4,2)=.1  !f>=Flow, f<Fhigh
+314     Verlimits(4,3)=.2  !f>=Fhigh
+316     Verlimits(5,1)=20  !Limits for sum, f<Flow
+318     Verlimits(5,2)=20  !f>=Flow, f<Fhigh
+320     Verlimits(5,3)=20  !f>=Fhigh
+322     Filename$(1)="THRUL"!LIST OF FILES TO BE PROCESSED
+324     Verlimits(6,1)=.1  !Limits for thru line, f<Flow
+326     Verlimits(6,2)=.1  !f>=Flow, f<Fhigh
+328     Verlimits(6,3)=.1  !f>=Fhigh
+330     Filename$(2)="PAD3"
+332     Verlimits(7,1)=.3  !Limits for 3dB pad, f<Flow
+334     Verlimits(7,2)=.3  !f>=Flow, f<Fhigh
+336     Verlimits(7,3)=.3  !f>=Fhigh
+338     Filename$(3)="PAD10"
+340     Verlimits(8,1)=.3  !Limits for 10 dB pad, f<Flow
+342     Verlimits(8,2)=.3  !f>=Flow, f<Fhigh
+344     Verlimits(8,3)=.3  !f>=Fhigh
+346     Filename$(4)="PAD20"
+348     Verlimits(9,1)=.3  !Limits for 20 dB pad, f<Flow
+350     Verlimits(9,2)=.3  !f>=Flow, f<Fhigh
+352     Verlimits(9,3)=.3  !f>=Fhigh
+354     Filename$(5)="PAD30"
+356     Verlimits(10,1)=.3  !Limits for 30 dB pad, f<Flow
+358     Verlimits(10,2)=.3  !f>=Flow, f<Fhigh
+360     Verlimits(10,3)=.3  !f>=Fhigh
+362     Filename$(6)="PAD40"
+364     Verlimits(11,1)=.3  !Limits for 40 dB PAD, f<Flow
+366     Verlimits(11,2)=.3  !f>=Flow, f<Fhigh
+368     Verlimits(11,3)=.3  !f>=Fhigh
+370     Filename$(7)="PADN"
+372     Verlimits(12,1)=.3  !Limits for padn, f<Flow
+374     Verlimits(12,2)=.3  !f>=Flow, f<Fhigh
+376     Verlimits(12,3)=.3  !f>=Fhigh
+378     Filename$(8)="RES50"
+380     Verlimits(13,1)=.3  !Limits for 50 ohm resistors,  f<Flow
+382     Verlimits(13,2)=.3  !f>=Flow, f<Fhigh
+384     Verlimits(13,3)=.3  !f>=Fhigh
+386     Filename$(9)="RES"
+388     Verlimits(14,1)=.3  !Limits for resistors, f<Flow
+390     Verlimits(14,2)=.3  !f>=Flow, f<Fhigh
+392     Verlimits(14,3)=.3  !f>=Fhigh
+394     Filename$(10)="REFL"
+396     Verlimits(15,1)=.1  !Limits for reflects, f<Flow
+398     Verlimits(15,2)=.1  !f>=Flow, f<Fhigh
+400     Verlimits(15,3)=.1  !f>=Fhigh
+402     Filename$(11)="IND"
+404     Verlimits(16,1)=.1  !Limits for inductor, f<Flow
+406     Verlimits(16,2)=.1  !f>=Flow, f<Fhigh
+408     Verlimits(16,3)=.1  !f>=Fhigh
+410     Filename$(12)="CAP"
+412     Verlimits(17,1)=.1  !Limits for capacitor, f<Flow
+414     Verlimits(17,2)=.1  !f>=Flow, f<Fhigh
+416     Verlimits(17,3)=.1  !f>=Fhigh
+418   END IF
+420    !
+422   FOR I=1 TO Ifile
+424     IF Ans$="O" OR Ans$="o" THEN
+426       Filegn$=Filename$(I)&"G_CN"        !NIST MEASUREMENT, GaAs
+428     ELSE
+430       Filegn$=Filename$(I)&"G_N"        !NIST MEASUREMENT, GaAs
+432     END IF
+434     Fileg$=Filename$(I)&"G"         !GaAs DEVICE MEASUREMENT
+436     IF Tier2 THEN Fileg$=Fileg$&"_C"
+438     IF Srm THEN Fileg$=Filename$(I)&"G_X"!control measurement data.
+439     CALL Checkdutfile(Measured(*)) ! is there an evaldut.txt file?
+440     IF Measured(I) THEN  ! the ith device on this wafer should be measured
+442       CALL Readfile(Filegn$,Nfreq1,-9,Din_gn(*))!Nfreq=0 on error exit
+443       CALL Readfile(Fileg$,Nfreq1,-9,Din_g(*))!Nfreq=0 on error exit
+444       IF Ireverse THEN !swap user measurement ports
+446         FOR J=1 TO Nfreq
+448           Re=Din_g(J,2)
+450           Im=Din_g(J,3)
+452           Din_g(J,2)=Din_g(J,6)
+454           Din_g(J,3)=Din_g(J,7)
+456           Din_g(J,6)=Re
+458           Din_g(J,7)=Im
+460           Re=Din_g(J,4)
+462           Im=Din_g(J,5)
+464           Din_g(J,4)=Din_g(J,8)
+466           Din_g(J,5)=Din_g(J,9)
+468           Din_g(J,8)=Re
+470           Din_g(J,9)=Im
+472         NEXT J
+474       END IF
+476       FOR J=1 TO Nfreq
+478         Dout_g(J,1)=Din_gn(J+I_first-1,1)        !GaAs MEASUREMENTS
+480         IF ABS(Din_g(J,1)-Dout_g(J,1))>.0001 THEN GOTO Freqerr
+482         Slimit=0
+484         FOR K=1 TO 4
+486           T(K)=ABS(CMPLX(Din_g(J,2*K)-Din_gn(J+I_first-1,2*K),Din_g(J,2*K+1)-Din_gn(J+I_first-1,2*K+1)))
+488           IF (K=2 OR K=4) AND Nor THEN
+490             T(K)=ABS(CMPLX(Din_g(J,2*K)-Din_gn(J+I_first-1,2*K),Din_g(J,2*K+1)-Din_gn(J+I_first-1,2*K+1))/CMPLX(Din_g(J,2*K),Din_g(J,2*K+1)))
+492             IF SQR(Din_g(J,2*K)^2+Din_g(J,2*K+1)^2)<Limit THEN Slimit=1
+494             IF SQR(Din_gn(J+I_first-1,2*K)^2+Din_gn(J+I_first-1,2*K+1)^2)<Limit THEN Slimit=1
+496           END IF
+498           IF T(K)>T(1) THEN T(1)=T(K)
+500         NEXT K
+502         IF Slimit THEN T(1)=-T(1)
+504         Dout_g(J,I+5)=T(1)
+506       NEXT J
+507     ELSE  ! this device should not be measured
+508       GOTO Nexti
+509     END IF
+511 Nexti: NEXT I
+512   IF Srm THEN
+513     ASSIGN @Filen TO "VER_X"!CALIBRATION ERROR BOUND - CONTROL test set drift
+514     ENTER @Filen;Ver_x(*)
+516     ASSIGN @Filen TO *
+518     IF Ans$="O" OR Ans$="o" THEN
+520       ASSIGN @Filen TO "VER_NG"!NIST MEASUREMENT ERROR - SRM test set drift
+522     ELSE
+524       ASSIGN @Filen TO "VER_N"!NIST MEASUREMENT ERROR - SRM test set drift
+526     END IF
+528     ENTER @Filen;Ver_ng(*)
+530     ASSIGN @Filen TO *
+532     ASSIGN @Filen TO "VER_Y"  !NIST MEASUREMENT ERROR - CONTROL vs SRM calibration
+534     ENTER @Filen;Ver_y(*)
+536     ASSIGN @Filen TO *
+538     FOR J=1 TO Nfreq
+540       Dout_g(J,2)=ABS(Ver_x(J,2))
+542       Dout_g(J,3)=ABS(Ver_ng(J+I_first-1,2))
+544       Dout_g(J,4)=ABS(Ver_y(J,2))
+546       Dout_g(J,5)=Dout_g(J,2)+Dout_g(J,3)+Dout_g(J,4)
+548       IF ABS(Ver_x(J,1)-Dout_g(J,1))>.0001 THEN GOTO Freqerr
+550     NEXT J
+552   !Check error limits.
+554     Err_lim=0
+556     FOR J=1 TO Nfreq
+558       Slim=3 !select frequency range for limit check
+559       IF Dout_g(J,1)<Fhigh THEN Slim=2
+560       IF Dout_g(J,1)<Flow THEN Slim=1
+561       FOR K=2 TO Ifile+5
+562         IF Dout_g(J,K)>Verlimits(K,Slim) THEN
+563           Err_lim=Err_lim+1
+564           IF K=2 THEN Ans1$="control instrument drift"
+565           IF K=3 THEN Ans1$="SRM instrument drift"
+566           IF K=4 THEN Ans1$="control vs SRM calibration comparison"
+567           IF K>5 THEN Ans1$=Filename$(K-5)
+568           PRINT "Error limit exceeded for ";Ans1$;" at ";Dout_g(J,1);" GHz."
+569         END IF
+570       NEXT K
+571     NEXT J
+586     IF Err_lim>0 THEN
+588       PRINT Err_lim;" specification failures detected, SRM fails tests."
+590       BEEP
+592       INPUT "Press return to continue",Ans1$
+593       ALLOCATE Evalerr$(Err_lim)[80]  ! store error listing in an ascii file
+594       Row=0
+596       FOR J=1 TO Nfreq
+597         Slim=3!select frequency range for limit check
+598         IF Dout_g(J,1)<Fhigh THEN Slim=2
+599         IF Dout_g(J,1)<Flow THEN Slim=1
+600         FOR K=2 TO Ifile+5
+601           IF Dout_g(J,K)>Verlimits(K,Slim) THEN
+602             Row=Row+1
+604             IF K=2 THEN Ans1$="control instrument drift"
+605             IF K=3 THEN Ans1$="SRM instrument drift"
+606             IF K=4 THEN Ans1$="control vs SRM calibration comparison"
+607             IF K>5 THEN Ans1$=Filename$(K-5)
+608 Rowimg:     IMAGE #,K,K,K,K,K
+610             OUTPUT Evalerr$(Row) USING Rowimg;"Error limit exceeded for "&Ans1$&" at "&VAL$(Dout_g(J,1))&" GHz."
+611             Evalerr$(Row)=Evalerr$(Row)&CHR$(13)&CHR$(10)
+613           END IF
+614         NEXT K
+615       NEXT J
+616       CREATE "evallog.txt",Err_lim
+617       ASSIGN @Outlog TO "evallog.txt"
+618       OUTPUT @Outlog;Evalerr$(*)
+619       ASSIGN @Outlog TO *
+620       DEALLOCATE Evalerr$(*)
+621     END IF
+622   ELSE
+623     ASSIGN @Filen TO "VER"  !CALIBRATION ERROR BOUND - User test set drift
+624     ENTER @Filen;Ver(*)
+625     ASSIGN @Filen TO *
+626     IF Ans$="O" OR Ans$="o" THEN
+627       ASSIGN @Filen TO "VER_NG"!NIST MEASUREMENT ERROR - SRM test set drift
+628     ELSE
+629       ASSIGN @Filen TO "VER_N"!NIST MEASUREMENT ERROR - SRM test set drift
+630     END IF
+631     ENTER @Filen;Ver_ng(*)
+632     ASSIGN @Filen TO *
+633     FOR J=1 TO Nfreq
+634       Dout_g(J,2)=ABS(Ver(J,2))
+635       Dout_g(J,3)=ABS(Ver_ng(J+I_first-1,2))
+636       Dout_g(J,4)=Dout_g(J,2)+Dout_g(J,3)
+637       IF ABS(Ver(J,1)-Dout_g(J,1))>.0001 THEN GOTO Freqerr
+638     NEXT J
+639   END IF
+640 Replot: Iswap=0
+641   CALL Plot(Title$,Dout_g(*),Nfreq,Ifile,Srm,Err_lim)
+642   IF Iswap=1 THEN
+643     Iswap=0
+644     CALL Print(Title$,Printnum,Nfreq,Din_g(*),Din_gn(*),Srm)
+645     GOTO Replot
+646   END IF
+647  ! GOSUB Disk_save  !ONLY USE AT NIST TO SAVE DATA TO DISK
+648   BEEP 2000,.3
+650   DISP "Done."
+652   STOP
+654 Disk_save:     !
+656   OUTPUT 2 USING "#,K";"NÿB"
+658   INPUT "SAVE DATA TO DISK? (y/n)",Ans$
+660   Ans$=TRIM$(Ans$)
+662   IF Ans$="Y" OR Ans$="y" THEN
+664     ON ERROR GOTO Skipy
+666     PURGE "GAAS_DIF"
+668 Skipy: OFF ERROR
+670     DISP "Writing results out to disk."
+672     Fileg$="GAAS_DIF"
+674     Ihpuxlen=146+80+(Nfreq+1)*(Ifile+5)*20
+676     CREATE Fileg$,Ihpuxlen       !DOS FILE
+678     ASSIGN @Fileg TO Fileg$;FORMAT ON
+680     IF Srm THEN
+682       Tempg$="! CONTROL: "&Control$&" SRM: "&Srm_num$
+684     ELSE
+686       Tempg$="!"&Company$&" / "&Title$
+688     END IF
+690     OUTPUT @Fileg;Tempg$
+692     Tempg$="! FREQ BOUND ACTUALS("&VAL$(Ifile)&")"
+694     OUTPUT @Fileg;Tempg$
+696     FOR J=1 TO Nfreq
+698       Tempg$=""
+700       FOR I=1 TO Ifile+5
+702         Tempg$=Tempg$&VAL$(Dout_g(J,I))&" "
+704       NEXT I
+706       OUTPUT @Fileg;Tempg$
+708     NEXT J
+710     ASSIGN @Fileg TO *
+712   END IF
+714   RETURN
+716 Freqerr: DISP "ERROR: FREQUENCIES IN FILES DO NOT AGREE"
+718   BEEP
+720   PAUSE
+722   END
+724 Plot: SUB Plot(Title$,Dout(*),Nfreq,Ifile,Srm,Err_lim)
+726     OPTION BASE 1
+728     COM /Graph/Igraph,Iswap,Iplot,Filename$(15)[10],Company$[10],Ref_lab$[10],Measured(15)
+730     COM /Limits/Ymax,Ymin,Ytick,Xmax,Xmin,Xtick
+732         !
+734 Screen:           !PLOT TO SCREEN
+736     Grid=1
+738         !FIND MAX AND MIN VALUES
+740     IF Dout(1,1)<1 THEN
+742       Xmin=0
+744     ELSE
+746       Xmin=Dout(1,1)
+748     END IF
+750     Xmax=Dout(Nfreq,1)
+752     Xmint=Xmin
+754     CALL Tick(Xmax,Xmint,Xtick)
+756     Ymax=Dout(1,2)
+758     Ymin=0
+760     FOR J=1 TO Nfreq
+762       FOR K=2 TO Ifile+4
+764         IF ABS(Dout(J,K))>Ymax THEN Ymax=ABS(Dout(J,K))
+766       NEXT K
+768     NEXT J
+770     Ymint=Ymin
+772     CALL Tick(Ymax,Ymint,Ytick)
+774     GOSUB Screen1
+776     KEY LABELS ON
+778     ENABLE
+780     PRINTER IS CRT
+782     ENABLE
+784     FOR Ikey=0 TO 19
+786       ON KEY Ikey LABEL "" GOTO Kloop2
+788     NEXT Ikey
+790 Kloop2:      !
+792     ON KEY 0 LABEL "Quit" GOTO Graphdone
+794     ON KEY 1 LABEL "Look" GOTO Swap
+796     ON KEY 2 LABEL "Scale Y" GOSUB Scaley
+798     ON KEY 3 LABEL "Scale F" GOSUB Scalef
+800     ON KEY 4 LABEL "Grid" GOSUB Grid
+802     ON KEY 5 LABEL "Auto" GOTO Screen
+804     ON KEY 6 LABEL "Pen" GOSUB Pen
+806     KEY LABELS ON
+808     LOOP
+810     END LOOP
+812     RETURN
+814 Scaley:   !SCALE Y
+816     Autoy=0
+818     OUTPUT 2 USING "#,K";Ymax
+820     INPUT "INPUT Y max ",Ymax
+822     OUTPUT 2 USING "#,K";Ymin
+824     INPUT "INPUT Y mIN ",Ymin
+826     Ymint=Ymin
+828     Ymaxt=Ymax
+830     CALL Tick(Ymaxt,Ymint,Ytick)
+832     OUTPUT 2 USING "#,K";Ytick
+834     INPUT "INPUT Y tick ",Ytick
+836     IF Ytick<1.E-5 THEN Ytick=1.E-5
+838     GOSUB Screen1
+840     RETURN
+842 Grid:     !TOGGLE GRID
+844     Grid=Grid+1
+846     IF Grid>1 THEN Grid=0
+848     GOSUB Screen1
+850     RETURN
+852 Scalef:   !SCALE F
+854     OUTPUT 2 USING "#,K";Xmax
+856     INPUT "INPUT F max ",Xmax
+858     OUTPUT 2 USING "#,K";Xmin
+860     INPUT "INPUT F min ",Xmin
+862     Xmint=Xmin
+864     Xmaxt=Xmax
+866     CALL Tick(Xmaxt,Xmint,Xtick)
+868     OUTPUT 2 USING "#,K";Xtick
+870     INPUT "INPUT F tick ",Xtick
+872     IF Xtick<1.E-5 THEN Xtick=1.E-5
+874     GOSUB Screen1
+876     RETURN
+878 Screen1:          !PLOT AGAIN TO SCREEN
+880     CLEAR SCREEN
+882     GCLEAR
+884     GINIT
+886     GRAPHICS ON
+888     ALPHA OFF
+890     CALL Graph(Title$,Dout(*),Nfreq,Ifile,Grid,Srm,Err_lim)
+892     RETURN
+894 Swap: Iswap=1
+896 Graphdone: GRAPHICS OFF
+898     DISABLE
+900     OFF KEY
+902     ALPHA ON
+904     OUTPUT 1 USING "#,K";"ÿK"
+906     GCLEAR
+908     ENABLE
+910     SUBEXIT
+912 Pen:        !
+914     DISP "Plotting..."
+916     GINIT
+918     ON ERROR GOTO Penerror
+920     PLOTTER IS Igraph,"HPGL"        !#### GRAPHICS DEVICE #####
+922     OFF ERROR
+924     CALL Graph(Title$,Dout(*),Nfreq,Ifile,Grid,Srm,Err_lim)
+926     PENUP
+928     DISP ""
+930     BEEP 3000,.1
+932     RETURN
+934 Penerror: OFF ERROR
+936     DISP "Grapics device "&VAL$(Igraph)&" not found.  Set 'Igraph' to plotter address."
+938     BEEP 80,.2
+940     WAIT 3
+942     Displ=0
+944     GOSUB Screen1
+946     RETURN
+948   SUBEND
+950   !
+952 Graph: SUB Graph(Title$,Dout(*),Nfreq,Ifile,Grid,Srm,Err_lim)
+954     OPTION BASE 1
+956     COM /Srm/Control$[10],Srm_num$[10]
+958     COM /Graph/Igraph,Iswap,Iplot,Filename$(15)[10],Company$[10],Ref_lab$[10],Measured(15)
+960     COM /Norm/Nor,Limit
+962     DEG
+964     COM /Limits/Ymax,Ymin,Ytick,Xmax,Xmin,Xtick
+966     VIEWPORT 0,100*RATIO,0,100
+968     WINDOW 0,100,0,100
+970     LORG 2
+972     LDIR 0
+974     PEN 4
+976     Ix=15
+978     LINE TYPE 1
+980     MOVE Ix,92
+982     DRAW Ix+4,92
+984     DRAW Ix+8,92
+986     MOVE Ix,92
+988     DRAW Ix+4,92
+990     DRAW Ix+8,92
+992     MOVE Ix,92
+994     LORG 5
+996     CSIZE 2
+998     LABEL "X"
+1000    MOVE Ix,92
+1002    DRAW Ix+4,92
+1004    DRAW Ix+8,92
+1006    MOVE Ix+8,92
+1008    LABEL "X"
+1010    LORG 2
+1012    LINE TYPE 1
+1014    MOVE Ix+10,92
+1016    CSIZE 3
+1018    IF Srm THEN
+1020      LABEL "Control instrument drift"
+1022    ELSE
+1024      LABEL Company$&" instrument drift"
+1026    END IF
+1028    PEN 3
+1030    LINE TYPE 1
+1032    MOVE Ix,88
+1034    LORG 5
+1036    CSIZE 1
+1038    LABEL "X"
+1040    MOVE Ix,88
+1042    DRAW Ix+4,88
+1044    DRAW Ix+8,88
+1046    LABEL "X"
+1048    LINE TYPE 1
+1050    MOVE Ix+10,88
+1052    LORG 2
+1054    CSIZE 3
+1056    IF Srm THEN
+1058      LABEL "SRM instrument drift"
+1060    ELSE
+1062      LABEL Ref_lab$&" instrument drift"
+1064    END IF
+1066    PEN 2
+1068    MOVE Ix,84
+1070    CSIZE 2
+1072    LORG 5
+1074    LABEL "O"
+1076    LINE TYPE 1
+1078    MOVE Ix,84
+1080    DRAW Ix+4,84
+1082    DRAW Ix+8,84
+1084    LINE TYPE 1
+1086    MOVE Ix+8,84
+1088    LABEL "O"
+1090    MOVE Ix+10,84
+1092    CSIZE 3
+1094    LORG 2
+1096    IF Srm THEN
+1098      LABEL "Control cal. vs. SRM cal."
+1100    ELSE
+1102      LABEL "Sum of "&Company$&" and "&Ref_lab$&" instrument drifts"
+1104    END IF
+1106    IF Srm THEN  !print out an extra label
+1108      PEN 5
+1110      MOVE Ix,80
+1112      CSIZE 2
+1114      LORG 5
+1116      LABEL "S"
+1118      LINE TYPE 1
+1120      MOVE Ix,80
+1122      DRAW Ix+4,80
+1124      DRAW Ix+8,80
+1126      LINE TYPE 1
+1128      MOVE Ix+8,80
+1130      LABEL "S"
+1132      MOVE Ix+10,80
+1134      CSIZE 3
+1136      LORG 2
+1138      LABEL "Sum of bounds"
+1140    END IF
+1142    Off_label=80
+1144    IF Srm THEN Off_label=76
+1146    PEN 1
+1148    MOVE Ix,Off_label
+1150    DRAW Ix+8,Off_label
+1152    MOVE Ix,Off_label
+1154    DRAW Ix+8,Off_label
+1156    MOVE Ix+10,Off_label
+1158    LABEL "Measurement deviations"
+1160    IF Nor AND Limit>0 THEN
+1162      PEN 5
+1164      MOVE Ix,72
+1166      DRAW Ix+8,72
+1168      MOVE Ix,72
+1170      DRAW Ix+8,72
+1172      MOVE Ix+10,72
+1174      LABEL "meas. dev. when "&CHR$(124)&"S(i,j)"&CHR$(124)&"<"&VAL$(Limit)
+1176    END IF
+1178    PEN 1
+1180    MOVE 50,100
+1182    LORG 6
+1184    CSIZE 3
+1186    IF Srm THEN
+1188      IF Err_lim>1 THEN
+1190        LABEL "CONTROL WAFER: "&Control$&" / SRM WAFER: "&Srm_num$&" / TEST FAILED "&VAL$(Err_lim)&" TIMES!"
+1192      ELSE
+1194        LABEL "CONTROL WAFER: "&Control$&" / SRM WAFER: "&Srm_num$
+1196      END IF
+1198    ELSE
+1200      LABEL Company$&" / "&Title$
+1202    END IF
+1204    MOVE 50,100
+1206    IF Srm THEN
+1208      IF Err_lim>1 THEN
+1210        LABEL "CONTROL WAFER: "&Control$&" / SRM WAFER: "&Srm_num$&" / TEST FAILED "&VAL$(Err_lim)&" TIMES!"
+1212      ELSE
+1214        LABEL "CONTROL WAFER: "&Control$&" / SRM WAFER: "&Srm_num$
+1216      END IF
+1218    ELSE
+1220      LABEL Company$&" / "&Title$
+1222    END IF
+1224    LORG 1
+1226    MOVE 0,4
+1228    CSIZE 2
+1230    LABEL "National Institute of Standards and Technology"
+1232    MOVE 0,2
+1234    LABEL "NIST/Industrial MMIC Consortium"
+1236    MOVE 50,7.5
+1238    LORG 4
+1240    CSIZE 4
+1242    LABEL "FREQUENCY (GHz)"
+1244    LORG 7
+1246    MOVE 98,2
+1248    CSIZE 2
+1250    LABEL DATE$(TIMEDATE)&" "&TIME$(TIMEDATE)
+1252    MOVE 98,4
+1254    LABEL "Probe station instrumentation verification"
+1256    LORG 3
+1258    LDIR 90
+1260    CSIZE 4
+1262    IF Nor THEN
+1264      MOVE 0,15
+1266      LABEL "MAX "&CHR$(124)&"S  -S' "&CHR$(124)&" and "&CHR$(124)&"S  -S' "&CHR$(124)&"/"&CHR$(124)&"S  "&CHR$(124)
+1268      MOVE 1.5,15
+1270      LABEL "      ii  ii        ij  ij    ij"
+1272    ELSE
+1274      MOVE 0,35
+1276      LABEL "MAX "&CHR$(124)&"S  -S' "&CHR$(124)
+1278      MOVE 1.5,35
+1280      LABEL "      ij  ij"
+1282    END IF
+1284    VIEWPORT RATIO*8,RATIO*95,15,95
+1286    WINDOW Xmin,Xmax,Ymin,Ymax
+1288    LDIR 0
+1290    IF Grid THEN
+1292      GRID Xtick,Ytick,Xmin,Ymin
+1294    ELSE
+1296      AXES Xtick,Ytick,Xmin,Ymin,1,1
+1298    END IF
+1300    CLIP OFF
+1302    LORG 6
+1304    FOR Xlabelpos=Xmin TO Xmax STEP Xtick
+1306      MOVE Xlabelpos,Ymin
+1308      IF ABS(Xlabelpos)<1.E-15 THEN
+1310        Temp=0
+1312      ELSE
+1314        Temp=Xlabelpos
+1316      END IF
+1318      CSIZE 3
+1320      LABEL Temp
+1322    NEXT Xlabelpos
+1324    LORG 8
+1326    Delta=1.E-10
+1328    IF Ymax<=0 THEN Delta=-Delta
+1330    FOR Ylabelpos=Ymin TO Ymax*(1+Delta) STEP Ytick
+1332      MOVE Xmin,Ylabelpos
+1334      IF ABS(Ylabelpos)<1.E-15 THEN
+1336        Temp=0
+1338      ELSE
+1340        Temp=Ylabelpos
+1342      END IF
+1344      LABEL USING "K";Temp
+1346    NEXT Ylabelpos
+1348    CLIP ON
+1350    MOVE Xmin,Ymin
+1352    DRAW Xmax,Ymin
+1354    DRAW Xmax,Ymax
+1356    DRAW Xmin,Ymax
+1358    DRAW Xmin,Ymin
+1360    MOVE Xmin,Ymin
+1362    CLIP ON
+1364    CSIZE 2
+1366    PEN 4
+1368    LORG 5
+1370    LINE TYPE 1
+1372    FOR J=2 TO Ifile+5
+1374      IF Srm<>1 AND J=5 THEN GOTO Skpcrv
+1375      IF J>5 THEN    ! plot the device only if it's to be measured
+1377       IF NOT Measured(J-5) THEN GOTO Skpcrv !for this wafer-calset
+1378      END IF
+1379      Slimit=0
+1380      IF J=3 THEN PEN 3
+1381      IF J=4 THEN PEN 2
+1382      IF J=5 THEN PEN 5
+1384      IF J=6 OR J=7 THEN
+1386        PEN 1
+1388        LINE TYPE 1
+1390      END IF
+1392      IF Dout(1,J)<0 AND J>5 THEN
+1394        Slimit=1
+1396        PEN 5
+1398      END IF
+1400      MOVE Dout(1,1),ABS(Dout(1,J))
+1402      FOR K=1 TO Nfreq
+1404        IF J>5 THEN
+1406          IF Dout(K,J)<0 THEN
+1408            IF Slimit=0 THEN
+1410              Slimit=1
+1412              PEN 5
+1414            END IF
+1416          ELSE
+1418            IF Slimit=1 AND Dout(K,J)>0 THEN
+1420              Slimit=0
+1422              PEN 1
+1424            END IF
+1426          END IF
+1428        END IF
+1430        DRAW Dout(K,1),ABS(Dout(K,J))
+1432        IF J<=5 THEN           !DRAW LABELS
+1434          LORG 5
+1436          CSIZE 1
+1438          IF J=2 OR J=4 OR J=5 THEN CSIZE 2
+1440          IF J=2 THEN LABEL "X"
+1442          IF J=3 THEN LABEL "X"
+1444          IF J=4 THEN LABEL "O"
+1446          IF J=5 THEN LABEL "S"
+1448          MOVE Dout(K,1),ABS(Dout(K,J))
+1450        END IF
+1452        IF K=Nfreq THEN MOVE Dout(K,1),ABS(Dout(K,J))
+1454        IF K=Nfreq AND Iplot AND J>5 THEN !plot labels on right of graph
+1456          CLIP OFF
+1458          MOVE Xmax*1.005,ABS(Dout(K,J))
+1460          LORG 2
+1462          CSIZE 2
+1464          LABEL Filename$(J-5)
+1466          CLIP ON
+1468        END IF
+1470      NEXT K
+1472 Skpcrv:    !skip a curve
+1474    NEXT J
+1476    PENUP
+1478    LINE TYPE 1
+1480  SUBEND    ! Graph
+1482 Tick: SUB Tick(Xmax,Xmin,Xtick)
+1484    OPTION BASE 1
+1486    Xmag=ABS(Xmax-Xmin)
+1488    IF Xmag=0 THEN
+1490      Xtick=ABS(Xmax)/2
+1492      IF Xtick=0 THEN Xtick=1.E-5
+1494      Xmax=Xmin+Xtick
+1496      Xmin=Xmin-Xtick
+1498      SUBEXIT
+1500    END IF
+1502    Qexp=INT(LOG(Xmag)/LOG(10))
+1504    Qfront=Xmag/(10^Qexp)
+1506    IF Qfront<1.6 THEN
+1508      Qtick=.1
+1510    ELSE
+1512      IF Qfront<3.5 THEN
+1514        Qtick=.5
+1516      ELSE
+1518        Qtick=1
+1520      END IF
+1522    END IF
+1524    Xtick=Qtick*(10^Qexp)
+1526    Xmax=INT(Xmax/Xtick+.99)*Xtick
+1528    IF Xmin>=0 THEN
+1530      Xmin=INT(Xmin/Xtick)*Xtick
+1532    ELSE
+1534      Xmin=INT(Xmin/Xtick+.03)*Xtick
+1536    END IF
+1538  SUBEND   ! Tick
+1540 Print: SUB Print(Title$,Printnum,Nfreq,Din_g(*),Din_gn(*),Srm)
+1542    OPTION BASE 1
+1544    COM /Graph/Igraph,Iswap,Iplot,Filename$(15)[10],Company$[10],Ref_lab$[10],Measured(15)
+1546 Dev: INPUT "Input the device name (REFL, RES5, IND, CAP, etc.)",Dev$
+1548    Idev=0
+1550    FOR I=1 TO 9
+1552      IF Filename$(I)=UPC$(TRIM$(Dev$)) THEN Idev=I
+1554    NEXT I
+1556    IF Idev=0 THEN
+1558      BEEP 80,.2
+1560      GOTO Dev
+1562    END IF
+1564    Filegn$=Filename$(Idev)&"G_CN"          !NIST MEASUREMENT, GaAs
+1566    Fileg$=Filename$(Idev)&"G"         !GaAs DEVICE MEASUREMENT
+1568    IF Srm THEN Fileg$=Filename$(Idev)&"G_X"!control measurement data.
+1570    IF Tier2 THEN Fileg$=Fileg$&"_C"
+1572    ASSIGN @Filegn TO Filegn$
+1574    ASSIGN @Fileg TO Fileg$
+1576    ENTER @Filegn;Din_gn(*)
+1578    ENTER @Fileg;Din_g(*)
+1580    ASSIGN @Filegn TO *
+1582    ASSIGN @Fileg TO *
+1584    CALL Stuff_polar(Din_gn(*))
+1586    CALL Stuff_polar(Din_g(*))
+1588    CLEAR SCREEN
+1590    FOR I=1 TO Nfreq
+1592      IF I=20*INT(I/20) OR I=1 THEN
+1594        IF I<>1 THEN INPUT "press return to continue",Ans$
+1596        CLEAR SCREEN
+1598        PRINT Company$;" / ";Title$;" / ";Filename$(Idev)
+1600        PRINT
+1602        PRINT "                                   MEASURED MAGNITUDES"
+1604        PRINT "               S11                 S21               S21                S22"
+1606        PRINT "frequency user     nist      user     nist      user     nist      user     nist"
+1608        PRINT
+1610      END IF
+1612      ON ERROR GOTO Skip
+1614      PRINT USING 1734;Din_g(I,1),Din_g(I,2),Din_gn(I,2),Din_g(I,4),Din_gn(I,4),Din_g(I,8),Din_gn(I,8),Din_g(I,6),Din_gn(I,6)
+1616 Skip: OFF ERROR
+1618      PRINT
+1620    NEXT I
+1622    INPUT "press return to continue",Ans$
+1624    FOR I=1 TO Nfreq
+1626      IF I=20*INT(I/20) OR I=1 THEN
+1628        IF I<>1 THEN INPUT "press return to continue",Ans$
+1630        CLEAR SCREEN
+1632        PRINT Company$;" / ";Title$;" / ";Filename$(Idev)
+1634        PRINT
+1636        PRINT "                                      MEASURED PHASES"
+1638        PRINT "               S11                 S21               S21                S22"
+1640        PRINT "frequency user     nist      user     nist      user     nist      user     nist"
+1642        PRINT
+1644      END IF
+1646      ON ERROR GOTO Skip1
+1648      PRINT USING 1736;Din_g(I,1),Din_g(I,3),Din_gn(I,3),Din_g(I,5),Din_gn(I,5),Din_g(I,9),Din_gn(I,9),Din_g(I,7),Din_gn(I,7)
+1650 Skip1: OFF ERROR
+1652      PRINT
+1654    NEXT I
+1656    INPUT "Print the data?",Ans$
+1658    Ans$=UPC$(TRIM$(Ans$))
+1660    IF Ans$="Y" THEN
+1662      ASSIGN @Lpt TO Printnum
+1664      CLEAR SCREEN
+1666      PRINT "Printing..."
+1668      FOR I=1 TO Nfreq
+1670        IF I=1 THEN
+1672          OUTPUT @Lpt;Company$;" / ";Title$;" / ";Filename$(Idev)
+1674          OUTPUT @Lpt
+1676          OUTPUT @Lpt;"                                    MEASURED MAGNITUDES"
+1678          OUTPUT @Lpt;"               S11                 S21               S21                S22"
+1680          OUTPUT @Lpt;"frequency user     nist      user     nist      user     nist      user     nist"
+1682          OUTPUT @Lpt
+1684        END IF
+1686        ON ERROR GOTO Skip2
+1688        OUTPUT @Lpt USING 1734;Din_g(I,1),Din_g(I,2),Din_gn(I,2),Din_g(I,4),Din_gn(I,4),Din_g(I,8),Din_gn(I,8),Din_g(I,6),Din_gn(I,6)
+1690 Skip2: OFF ERROR
+1692        OUTPUT @Lpt
+1694      NEXT I
+1696      ASSIGN @Lpt TO *
+1698      ASSIGN @Lpt TO Printnum
+1700      FOR I=1 TO Nfreq
+1702        IF I=1 THEN
+1704          OUTPUT @Lpt;Company$;" / ";Title$;" / ";Filename$(Idev)
+1706          OUTPUT @Lpt
+1708          OUTPUT @Lpt;"                                      MEASURED PHASES"
+1710          OUTPUT @Lpt;"               S11                 S21               S21                S22"
+1712          OUTPUT @Lpt;"frequency user     nist      user     nist      user     nist      user     nist"
+1714          OUTPUT @Lpt
+1716        END IF
+1718        ON ERROR GOTO Skip3
+1720        OUTPUT @Lpt USING 1736;Din_g(I,1),Din_g(I,3),Din_gn(I,3),Din_g(I,5),Din_gn(I,5),Din_g(I,9),Din_gn(I,9),Din_g(I,7),Din_gn(I,7)
+1722 Skip3: OFF ERROR
+1724        OUTPUT @Lpt
+1726      NEXT I
+1728      ASSIGN @Lpt TO *
+1730    END IF
+1732    SUBEXIT
+1734    IMAGE #,3D.2D,4(2X,3D.4D,X,3D.4D)   !for mag
+1736    IMAGE #,3D.2D,4(2X,M3D.3D,X,M3D.3D)   !for phase
+1738  SUBEND
+1740 Stuff_polar: SUB Stuff_polar(Dout(*))
+1742    INTEGER I,J,Nfreq
+1744    COMPLEX S
+1746    DEG
+1748    Nfreq=SIZE(Dout,1)
+1750    FOR I=1 TO Nfreq
+1752      FOR J=2 TO 8 STEP 2       !SO (J,J+1) = (2,3),(4,5),(6,7),(8,9)
+1754        S=CMPLX(Dout(I,J),Dout(I,J+1))
+1756        Dout(I,J)=20*LGT(MAX(ABS(S),1.001E-50))          !PREVENT LGT(O) OVERFLOW
+1758        Dout(I,J+1)=ARG(S)
+1760      NEXT J
+1762    NEXT I
+1764  SUBEND        ! Stuff_polar
+1766  !
+1768 Readfile: SUB Readfile(File$,Nfreq,Width,Array(*))  !Nfreq=0 on error exit
+1770  ! Version 1.01.  Test for file format, and if magnitude-phase, convert to real-imag for return in Array(*)
+1772  !Set Width=-9 for S_par file.  Otherwise Width=number of columns.
+1774    OPTION BASE 1
+1776    DEG     ! all angles in degrees
+1778    DIM Arrayi(1601,9),Temp$[256],Temp1$[256],Index(9)
+1780    COMPLEX Tempcmplx
+1782    Nfreq=0
+1784    ON ERROR GOTO File_error
+1786    ASSIGN @Path TO File$
+1788    STATUS @Path,1;File_type
+1790    SELECT File_type
+1792    CASE 2 !BDAT
+1794      STATUS @Path,3;Nfreq        !reads number of records=Nfreqi
+1796      REDIM Array(Nfreq,ABS(Width))
+1798      ENTER @Path;Array(*)
+1800      ASSIGN @Path TO *
+1802      OFF ERROR
+1804      SUBEXIT
+1806    CASE 3,4!ASCII or HPUX
+1808      IF File_type=4 THEN !HPUX
+1810        ASSIGN @Path TO *
+1812        ASSIGN @Path TO File$;FORMAT ON
+1814      END IF
+1816      ON ERROR GOTO Don
+1818 Tryagai: ENTER @Path;Temp$
+1820      Temp$=TRIM$(Temp$)
+1822      IF Temp$[1,1]="!" THEN GOTO Tryagai
+1824      IF Temp$[1,1]="#" THEN
+1826        Templen=LEN(Temp$)
+1828        FOR J=1 TO Templen-1
+1830          IF Temp$[J,J+1]="MA" THEN
+1832            Form=1
+1834            GOTO Tryagai
+1836          END IF
+1838        NEXT J
+1840        GOTO Tryagai
+1842      END IF
+1844 D_loop:        !Change all 'D', 'd' and 'e' exponents to 'E' type expontents.
+1846      D_pos=MAX(POS(Temp$,"D"),POS(Temp$,"d"),POS(Temp$,"e"))
+1848      IF D_pos=0 THEN GOTO D_end !If no D, d, or e, then jump out of this loop.
+1850      Temp$[D_pos,D_pos]="E"     !Change to an 'E'.
+1852      GOTO D_loop                !Go back and check for any more.
+1854 D_end:                          !End of expoenet replacement loop.
+1856 Tab_loop:   !Loop to convert all tabs to spaces so we can use the TRIM$ command to parse.
+1858      T_pos=POS(Temp$,CHR$(9))   !Look for position of a tab, ASCII code 9.
+1860      IF T_pos=0 THEN GOTO Tab_end!Skip out if no more tabs are found.
+1862      Temp$[T_pos,T_pos]=CHR$(32)!Replace with space, ASCII code 32.
+1864      GOTO Tab_loop              !Go back and look for more tabs.
+1866 Tab_end:                        !End of tab to space conversion loop.
+1868  !Pick out numbers from each column.
+1870      FOR J=1 TO ABS(Width)-1
+1872        Temp$=TRIM$(Temp$)
+1874        Posend=POS(Temp$," ")
+1876        Temp1$=TRIM$(Temp$[1,Posend])
+1878        Temp$=Temp$[Posend+1,LEN(Temp$)]
+1880        Arrayi(Nfreq+1,J)=VAL(Temp1$)
+1882      NEXT J
+1884      Arrayi(Nfreq+1,ABS(Width))=VAL(Temp$)
+1886      !IF Arrayi(Nfreq+1,1)<>0 THEN Nfreq=Nfreq+1
+1888      Nfreq=Nfreq+1
+1890      GOTO Tryagai
+1892 Don: OFF ERROR       !ASCII      file has been read.
+1894      IF Nfreq=0 THEN GOTO File_error
+1896      ASSIGN @Path TO *
+1898      ON ERROR GOTO File_error
+1900      REDIM Array(Nfreq,ABS(Width))!Stuff data into Array and swap order
+1902      IF Width<>-9 THEN
+1904        FOR I=1 TO Nfreq
+1906          FOR J=1 TO ABS(Width)
+1908            Array(I,J)=Arrayi(I,J)
+1910          NEXT J
+1912        NEXT I
+1914      ELSE  !S-parameter file - reverse indicies
+1916        FOR J=1 TO 5
+1918          Index(J)=J
+1920        NEXT J
+1922        Index(6)=8
+1924        Index(7)=9
+1926        Index(8)=6
+1928        Index(9)=7
+1930        FOR I=1 TO Nfreq
+1932          FOR J=1 TO 9
+1934            Array(I,J)=Arrayi(I,Index(J))
+1936          NEXT J
+1938        NEXT I
+1940      END IF
+1942      IF Form=1 THEN    ! convert mag-phase data to real-imag
+1944        FOR I=1 TO Nfreq
+1946          FOR J=2 TO 8 STEP 2
+1948            Tempcmplx=Array(I,J)*CMPLX(COS(Array(I,J+1)),SIN(Array(I,J+1)))
+1950            Array(I,J)=REAL(Tempcmplx)
+1952            Array(I,J+1)=IMAG(Tempcmplx)
+1954          NEXT J
+1956        NEXT I
+1958      END IF
+1960      SUBEXIT
+1962    CASE ELSE
+1964    END SELECT
+1966 File_error: OFF ERROR
+1968    DISP "Error in reading the S-parameter file : ";File$
+1970    BEEP 80,.2
+1972    Nfreq=0
+1974    WAIT 2
+1976    SUBEXIT
+1978  SUBEND
+1980 Checkdutfile: SUB Checkdutfile(Measured(*))
+1990  ! check for the existance of evaldut.txt file.  if it exists, read
+2000  !   in the read/don't read flag into measured(*).  If file doesn't
+2010  !   exist, set all flags in measured(*) to = 1.
+2020  ! output:  Measured(i) = 1 if device # i on this wafer & cal set
+2030  !            should have been measured.  = 0 if not.
+2040  !            ith device is in the order the devices occur on
+2050  !            the measurement slide, from left (THRUL) to right (CAP).
+2051  !    as of 4/1998, there are 12 devices to be measured.
+2060  !
+2070    OPTION BASE 1
+2071    DIM Str$(15)[120]
+2073    ON ERROR GOTO Nofile
+2080    ASSIGN @In TO "evaldut.txt";FORMAT ON
+2081    OFF ERROR
+2090    ENTER @In;Str$(*)
+2100    FOR I=1 TO 12   ! currently 12 devices, + 3 lines of header
+2110      Measured(I)=VAL(Str$(I+3)[11,11])
+2120    NEXT I
+2130    GOTO Dutchkdone
+2140 Nofile: OFF ERROR
+2150    MAT Measured=(1)
+2160 Dutchkdone: SUBEND
+</script>
+
+</code></pre>
+
+<script src="prism.js" data-default-language="markup"></script>
+</body>
+</html>

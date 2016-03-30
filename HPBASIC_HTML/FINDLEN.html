@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FINDLEN.TXT</title>
+    <link href="prism.css" rel="stylesheet" />
+</head>
+<body>
+<h1> A highlighted Plain Text version of FINDLEN.TXT Basic Program</h1>
+<pre><code class="language-basic"><script>5!    RE-STORE "FINDLEN"
+10    !
+15    !***************************************************************
+20    !*                                                             *
+25    !*                                                             *
+30    !*      NIST TRL LINE- LENGTH CHOOSING PROGRAM                 *
+35    !*        7/05/2011          REV 1.01                          *
+40    !*                                                             *
+45    !*                                                             *
+50    !***************************************************************
+55    !
+60  OPTION BASE 1
+65  DEG
+70  DIM String$[80],Label$(0:9)[14]
+75  COM Epsr,Epsi,Length(10),Freql,Freqh,Stdmax,INTEGER Nstd,Nfreq,Editpt
+76  COM /Line_parameters/R_line,Z0_line
+80  ALLOCATE Freq(1001),Stdev(1001)
+85  Stdmax=0
+90       !
+95  W$=CHR$(136)      !white
+100 R$=CHR$(137)      !red
+105 Y$=CHR$(138)      !yellow
+110 G$=CHR$(139)      !green
+115 C$=CHR$(140)      !cyan (light blue)
+120 B$=CHR$(141)      !blue
+125 M$=CHR$(142)      !magenta (pink)
+130 DISP M$
+135 PRINTER IS CRT
+140 PRINT USING "@"
+145   !
+150 String$="NIST Line Length Software version 1.00"
+155 PRINT W$;TABXY(40-LEN(String$)/2,9);String$
+160 String$="Property of NIST Industrial Consortium for MIMIC Metrology"
+165 PRINT TABXY(40-LEN(String$)/2,10);String$
+170 String$="FINDLEN is copyrighted and requires license outside USA."
+175 PRINT TABXY(40-LEN(String$)/2,11);String$
+180 PRINT TABXY(0,14);C$;"While every effort has been made to insure that this software is suitable for"
+185 PRINT TABXY(0,15);"the purposes intended, NIST makes no warranty, express or implied, as to its"
+190 PRINT TABXY(0,16);"correctness or fitness for a particular purpose and accepts no responsibility"
+195 PRINT TABXY(0,17);"for direct or consequential damages which may result from its use."
+200 WAIT 3
+205   !
+210 STATUS CRT,15;Stat(1)   !PRINT PEN
+215 STATUS CRT,16;Stat(2)   !KEY LABELS PEN
+220 STATUS CRT,17;Stat(3)   !KBD LINE PEN
+225 STATUS KBD,15;Stat(4)   !KBD CMODE
+230 PRINT PEN 2
+235 PRINT PEN 5
+240 KEY LABELS PEN 2
+245 KBD LINE PEN 5
+250   !
+255   !Set up softkeys:
+260 STATUS KBD,9;Kb   !get keyboard type
+265 Stat(5)=-1
+266 String$=SYSTEM$("VERSION:HTB")  !New check added in for compatibility July 5, 2011.
+267 IF String$<>"0" THEN
+268   KBD CMODE ON  !Use all softkeys
+269 END IF
+270 IF BIT(Kb,0)=0 AND BIT(Kb,1)=0 AND BIT(Kb,5)=1 THEN   !ITF KEYBOARD
+275   Stat(5)=1
+280   KBD CMODE ON
+285   Label$(0)="LOFREQ"
+290   Label$(1)="HIFREQ"
+295   Label$(2)="NFREQ"
+300   Label$(3)="ADD/DEL LINE"
+305   Label$(4)="DESIGN1DESIGN2"
+310   Label$(5)="LENGTH"
+315   Label$(6)="EPS"
+320   Label$(7)="GET    SAVE"
+325   Label$(8)="CMP STDOUTPUT"
+330   Label$(9)="SCREEN  HELP"
+335 ELSE                                             !"NIMITZ" KEYBOARD
+340   Label$(0)="LOFREQ"
+345   Label$(1)="HIFREQ"
+350   Label$(2)="NFREQ"
+355   Label$(3)="ADD/DEL   LINE"
+360   Label$(4)="DESIN1/DESIN2"
+365   Label$(5)="LENGTH"
+370   Label$(6)="EPS"
+375   Label$(7)="GET\SAVE MENU"
+380   Label$(8)="CMP STD\OUTPUT"
+385   Label$(9)="SCREEN \ HELP"
+390 END IF
+395   !
+400 Softkey:  !
+405 ON KEY 0 LABEL Label$(0) GOSUB Lofreq
+410 ON KEY 1 LABEL Label$(1) GOSUB Hifreq
+415 ON KEY 2 LABEL Label$(2) GOSUB Nfreq
+420 ON KEY 3 LABEL Label$(3) GOSUB Addstd
+425 ON KEY 4 LABEL Label$(4) GOSUB Cmplength1
+430 ON KEY 5 LABEL Label$(5) GOSUB Chglength
+435 ON KEY 6 LABEL Label$(6) GOSUB Epsupdate
+440 ON KEY 7 LABEL Label$(7) GOSUB Getmenu
+445 ON KEY 8 LABEL Label$(8) GOSUB Compute
+450 ON KEY 9 LABEL Label$(9) GOSUB Nscreen
+455 ON KEY 13 GOSUB Delstd
+460 ON KEY 14 GOSUB Cmplength2
+465 ON KEY 17 GOSUB Savemenu
+470 ON KEY 18 GOSUB Gooutmenu
+475 ON KEY 19 GOSUB Help
+480 KEY LABELS ON
+485   !
+490 ON KNOB .01 GOSUB Editscroll
+495 ON KBD GOSUB Handle_kbd
+500   !
+505 Filen$="LENMENU"
+510 GOSUB Getcalmenu
+515   !
+520 Loop1:                                  !  Loop here
+525 GOTO Loop1
+530 STOP
+535   !
+540 Help:  ! Help screen
+545 PRINT USING "@"
+550 PRINT Y$;"               PART 1 OF KEY DEFINITIONS";M$;" (^=SHIFT)"
+555 PRINT
+560 PRINT C$;" k3 ";Y$;"or";C$;"  f4    ";G$;" ADD STD   ";Y$;"Add a standard to the list"
+565 DISP C$;"Hit CONT to continue."
+570 PAUSE
+575 CALL Refresh
+580 RETURN
+585              !
+590 Epsupdate:    ! Updates the effective dielectric constant information
+595 OUTPUT 2 USING "#,K";Epsr;CHR$(255);"H"
+600 INPUT "INPUT REAL PART OF EFFECTIVE DIELECTRIC CONSTANT: ",Epsr
+605 OUTPUT 2 USING "#,K";Epsi;CHR$(255);"H"
+610 INPUT "INPUT IMAGINARY PART OF EFFECTIVE DIELECTRIC CONSTANT: (for estimating lengths) ",Epsi
+611 INPUT "INPUT THE RESISTANCE OF THE LINE IN OHMS/CM: (for calculating std. dev., 0 to ignore)",R_line
+612 IF R_line>0 THEN
+613   INPUT "INPUT THE LOSSLESS CHARACTERISTIC IMPEDANCE OF THE LINE: ",Z0_line
+615 END IF
+616 CALL Refresh
+620 RETURN
+625           !
+630 Hifreq:       ! Updates the high frequency
+635 OUTPUT 2 USING "#,K";Freqh;CHR$(255);"H"
+640 INPUT "INPUT High Frequency: ",Freqh
+645 CALL Refresh
+650 RETURN
+655           !
+660 Lofreq:       ! Updates the low frequency
+665 OUTPUT 2 USING "#,K";Freql;CHR$(255);"H"
+670 INPUT "INPUT Low Frequency: ",Freql
+675 CALL Refresh
+680 RETURN
+685           !
+690 Nfreq:       ! Updates the number of frequencies
+695 OUTPUT 2 USING "#,K";Nfreq;CHR$(255);"H"
+700 INPUT "INPUT Number of Frequencies: ",Nfreq
+705 CALL Refresh
+710 RETURN
+715           !
+720 Nscreen:      ! Updates the menu on the screen
+725 CALL Refresh
+730 RETURN
+735           !
+740 Savemenu:        ! Save current menu parameters on disk
+745 DISP "Input path and file name to save calibration data  ("""" => Abort SAVEMENU)";
+750 OUTPUT 2 USING "#,K";"LENMENU";RPT$(CHR$(255)&"<",7)
+755 INPUT "",String$
+760 IF String$="" THEN GOTO Savednomenu
+765 Filen$=String$
+770 Createmenu:  !
+775 ON ERROR GOTO Writeerror
+780 CREATE ASCII Filen$,100
+785 OFF ERROR
+790 ASSIGN @File TO Filen$
+795 OUTPUT @File;Length(*),Nstd,Nfreq,Freql,Freqh
+800 OUTPUT @File;Epsr,Epsi
+801 OUTPUT @File;R_line,Z0_line
+805 ASSIGN @File TO *
+810 CALL Refresh
+815 DISP "Calibration data and file names saved on file ";Filen$
+820 RETURN                                !from Savemenu
+825 Writeerror:   !
+830 OFF ERROR
+835 BEEP 81,.2
+840 DISP "File exists: Do you want to ";W$;"W";M$;"rite over or ";W$;"A";M$;"bort? (Enter ";W$;"W";M$;" or ";W$;"A";M$;")";
+845 INPUT "",Ans$
+850 IF Ans$="A" OR Ans$="a" THEN GOTO Savednomenu
+855 IF Ans$="W" OR Ans$="w" THEN
+860   PURGE Filen$&Outflloc$
+865   GOTO Createmenu
+870 END IF
+875 GOTO Writeerror
+880 Savednomenu:  !
+885 CALL Refresh
+890 DISP "No menu was saved"
+895 RETURN                                !from Savemenu, without new menu
+900              !
+905 Openerror:          ! Trap for error on opening non-existent file
+910 IF Imenu=0 THEN                        !IF LOOKING FOR STARTUP MENU
+915   GOSUB Defmenu
+920   CALL Refresh
+925 ELSE                                   !IF LOOKING FOR REQUESTED MENU
+930   BEEP 81,.2
+935   CALL Refresh
+940   DISP "Unable to locate menu ";TRIM$(Filen$)
+945 END IF
+950 RETURN
+955              !
+960 Readerror:          ! Trap for read error
+965 ! do nothing; it's probably just reading an old version of the menu
+970 ERROR RETURN
+975              !
+980 Getmenu:       ! Gets menu parameters from disk
+985 DISP "Input path and file name to retrieve calibration data  ("""" => Abort GETMENU)";
+990 OUTPUT 2 USING "#,K";Flpath$&"LENMENU";"ÿH"
+995 String$=""
+1000 INPUT "",String$
+1005 IF String$="" THEN GOTO Gotnomenu
+1010 Filen$=String$
+1015 Filen$=Filen$&Inflloc$
+1020 Imenu=1
+1025 Getcalmenu:   !ENTER ON FIRST CAL MENU LOAD
+1030 ON ERROR GOTO Openerror
+1035 ASSIGN @File TO Filen$
+1040 ON ERROR GOSUB Readerror
+1045 ENTER @File;Length(*),Nstd,Nfreq,Freql,Freqh
+1050 ENTER @File;Epsr,Epsi
+1051  R_line=0
+1052  ON ERROR GOTO Skpreadline
+1054  ENTER @File;R_line,Z0_line
+1055 Skpreadline:  OFF ERROR
+1057 ASSIGN @File TO *
+1060 OFF ERROR
+1065 OFF ERROR
+1070  !
+1075  !
+1080 Editpt=1
+1085 DISP M$;"Calibration data and file names retrieved from file ";Filen$;
+1090 WAIT 2
+1095 CALL Refresh
+1100 RETURN                               !from Getmenu
+1105 Gotnomenu: !
+1110 CALL Refresh
+1115 DISP "No menu was retrieved"
+1120 RETURN                               !from Getmenu, without a new menu
+1125  !
+1130 Defmenu:     !DEFAULT MENU SETUP
+1135 Length(1)=2.25
+1140 Length(2)=.75
+1145 Length(3)=0.
+1150 Nstd=3
+1155 Nfreq=17
+1160 Freql=2
+1165 Freqh=18
+1170 Epsr=1.00
+1175 Epsi=0.
+1180 RETURN
+1185             !
+1190             !-----------------------------------------------------------
+1195 Compute:       ! Computes std
+1200 KEY LABELS OFF
+1205 DISABLE               !TURNS OFF KEY LABELS
+1210  !
+1215 INTEGER I
+1220 COMPLEX Eps
+1225 Eps=CMPLX(Epsr,Epsi)
+1230 GOTO Single_freq
+1235  !
+1240 FOR Freqh=3 TO 16 STEP 1
+1245  Delfreq=(Freqh-Freql)/(Nfreq-1)
+1250  GOSUB Cmplength1
+1255  Stdmax=0
+1260  FOR I=1 TO Nfreq
+1265    Freq(I)=Freql+(I-1)*Delfreq
+1270    CALL Cmpstd(Length(*),Freq(I),Stdev(I),Eps,Nstd)
+1275    IF Stdev(I)>Stdmax THEN Stdmax=Stdev(I)
+1280  NEXT I
+1285  Stdmax2=0
+1290  GOSUB Cmplength2
+1295  FOR I=1 TO Nfreq
+1300    Freq(I)=Freql+(I-1)*Delfreq
+1305    CALL Cmpstd(Length(*),Freq(I),Stdev(I),Eps,Nstd)
+1310    IF Stdev(I)>Stdmax2 THEN Stdmax2=Stdev(I)
+1315  NEXT I
+1320  PRINT Freqh,Stdmax,Stdmax2,1/SIN(180/(1+SQR(Freqh/Freql)))
+1325 NEXT Freqh
+1330  !
+1335 Single_freq: !
+1340 Delfreq=(Freqh-Freql)/(Nfreq-1)
+1345 Stdmax=0
+1350 FOR I=1 TO Nfreq
+1355  Freq(I)=Freql+(I-1)*Delfreq
+1360  CALL Cmpstd(Length(*),Freq(I),Stdev(I),Eps,Nstd)
+1365  IF Stdev(I)>Stdmax THEN Stdmax=Stdev(I)
+1370 NEXT I
+1375  !
+1380 KEY LABELS ON
+1385 ENABLE
+1390 IF Stdmax<>0 THEN PRINT TABXY(41,16);Y$;"Max. St. Dev. ";W$;Stdmax
+1395 RETURN
+1400        !
+1405        !-----------------------------------------------------------------
+1410 Gooutmenu:     ! Go to Outmenu
+1415 CALL Outmenu(Freq(*),Stdev(*),Stat(*),Nfreq)
+1420 RETURN
+1425        !
+1430        !
+1435!
+1440 Addstd:   ! Adds a standard to the menu
+1445              !
+1450 IF Nstd=10 THEN
+1455  DISP "A Standard needs to be deleted to make room for the new."
+1460  RETURN
+1465 ELSE
+1470  Nstd=Nstd+1
+1475  FOR I=9 TO Editpt STEP -1
+1480    Length(I+1)=Length(I)
+1485  NEXT I
+1490  Length(Editpt)=0
+1495  CALL Refresh
+1500 END IF
+1505 RETURN
+1510!
+1515!---------------------------------------------------------------------
+1520!
+1525 Delstd: ! Deletes the selected standard from the menu
+1530 Nstd=Nstd-1
+1535 FOR I=Editpt+1 TO 10
+1540  Length(I-1)=Length(I)
+1545 NEXT I
+1550 IF Editpt=10 THEN
+1555  Editpt=9
+1560 ELSE
+1565  IF Editpt<>1 THEN Editpt=Editpt-1
+1570 END IF
+1575 CALL Refresh
+1580 Delstdrt:   !
+1585 RETURN
+1590 !
+1595 !---------------------------------------------------------------------
+1600 !
+1605 Chglength:      ! Sets the length of the standard
+1610 DISP "Enter a length of the line";
+1615 Relenstd:  !
+1620 OUTPUT 2 USING "#,K";Length(Editpt);CHR$(255);"H"
+1625 INPUT "",Newlen
+1630 IF Newlen>1000 THEN
+1635  BEEP 81,.2
+1640  DISP "That length (in cm.) is too large";
+1645  GOTO Relenstd
+1650 END IF
+1655 IF LEN(VAL$(Newlen))>8 THEN
+1660  BEEP 81,.2
+1665  DISP "Value contains too many digits (maximum of 7)";
+1670  GOTO Relenstd
+1675 END IF
+1680 Length(Editpt)=Newlen
+1685 CALL Refresh
+1690 Chglengthrt:   !
+1695 RETURN
+1700 !
+1705 Cmplength1:! BALANCED METHOD
+1710 IF Nstd<>3 THEN
+1715  BEEP
+1720  DISP "This feature works only with 3 lines."
+1725  WAIT 2
+1730 ELSE
+1735  Length(1)=0
+1740  Length(2)=(15/(Freql+Freqh))/SQR(CMPLX(Epsr,Epsi))
+1745  Length(3)=3*Length(2)
+1750 END IF
+1755 CALL Refresh
+1760 RETURN
+1765  !
+1770 Cmplength2:!   CONVENTIONAL METHOD
+1775 IF Nstd<>3 THEN
+1780  BEEP
+1785  DISP "This feature works only with 3 lines."
+1790  WAIT 2
+1795 ELSE
+1800  Freqc=SQR(Freql*Freqh)
+1805  Length(1)=0
+1810  Length(2)=(15/(Freql+Freqc))/SQR(CMPLX(Epsr,Epsi))
+1815  Length(3)=(Freql/Freqc)*Length(2)
+1820 END IF
+1825 CALL Refresh
+1830 RETURN
+1835 !------------------------------------------------------------------------
+1840 !
+1845 Handle_kbd:!
+1850 Test$=KBD$
+1855 IF Test$=CHR$(255)&"*" THEN
+1860  GOSUB Addstd                                 !"Insert line" key
+1865  RETURN
+1870 END IF
+1875 IF Test$=CHR$(255)&"/" THEN
+1880  GOSUB Delstd                                 !"Delete line" key
+1885  RETURN
+1890 END IF
+1895 IF Test$="X" OR Test$="x" THEN
+1900  GOSUB Exitcall                               !Exit program
+1905  RETURN
+1910 END IF
+1915 IF LEN(Test$)=1 AND Test$[1,1]<>CHR$(32) THEN
+1920  BEEP 81,.1
+1925  RETURN
+1930 END IF
+1935 IF Test$[1,1]=CHR$(32) THEN GOSUB Pickedit
+1940 IF Test$[1,1]<>CHR$(255) THEN RETURN
+1945 SELECT Test$[2,2]
+1950 CASE CHR$(255)
+1955                  ! do nothing
+1960 CASE "O"         !"dump alpha" key is "^O"
+1965  DUMP ALPHA
+1970 CASE "V","T"
+1975  GOSUB Pickedit
+1980 CASE "^","W"
+1985  GOSUB Pickedit1
+1990 CASE ELSE
+1995  BEEP 81,.1
+2000 END SELECT
+2005 Test$=""
+2010 RETURN
+2015 Exitcall: !
+2020 CALL Exitprgm(Stat(*))
+2025 RETURN
+2030 Editscroll:!Determine the direction of knob rotation and move edit pointer
+2035 Direction=-Stat(5)*(KNOBX+KNOBY)+Direction
+2040  !Stat(5)=1 ==> ITF keyboard ==> KNOB=MOUSE ==> reverse direction
+2045 IF ABS(Direction)<20 THEN RETURN
+2050 IF Direction>0 THEN
+2055  Direction=0
+2060  GOTO Pickedit
+2065 ELSE
+2070  Direction=0
+2075 END IF
+2080 Pickedit1: Editpt=Editpt-1
+2085 IF Editpt<1 THEN
+2090  Editpt=Nstd
+2095 END IF
+2100 CALL Editpoint(Editpt)
+2105 RETURN
+2110 Pickedit: Editpt=Editpt+1
+2115 IF Editpt>Nstd THEN Editpt=1
+2120 CALL Editpoint(Editpt)
+2125 RETURN
+2130 END
+2135  !
+2140  !**********************************************************************
+2145  !
+2150 Refresh: SUB Refresh                 ! Refreshes the screen menu
+2155  !Searches mass storage for file names only if Icat=1.
+2160  OPTION BASE 1
+2165  !
+2170  COM Epsr,Epsi,Length(10),Freql,Freqh,Stdmax,INTEGER Nstd,Nfreq,Editpt
+2171  COM /Line_parameters/R_line,Z0_line
+2175  INTEGER I,J
+2180  PRINTER IS CRT
+2185  W$=CHR$(136)    !white
+2190  R$=CHR$(137)    !red
+2195  Y$=CHR$(138)    !yellow
+2200  G$=CHR$(139)    !green
+2205  C$=CHR$(140)    !cyan (light blue)
+2210  B$=CHR$(141)    !blue
+2215  M$=CHR$(142)    !magenta (pink)
+2220    !
+2225  OUTPUT KBD;CHR$(255)&"K";            !CLEAR SCREEN
+2230  Header$="Length Finder"
+2235  PRINT TABXY(2,1);B$;CHR$(129)&RPT$(" ",39-LEN(Header$)/2)&Header$&RPT$(" ",39-INT((LEN(Header$)+1)/2))       !CENTERS THE HEADER
+2240    !
+2245  PRINT TABXY(6,2);Y$;"DESCRIPTION";TABXY(31,2);
+2250  PRINT TABXY(59,2);"LENGTH(cm)  ";B$
+2255  PRINT TABXY(1,13);RPT$(" ",79)
+2260  FOR I=1 TO 13
+2265    PRINT TABXY(1,I);" "
+2270    PRINT TABXY(79,I);" "
+2275  NEXT I
+2280  PRINT CHR$(128);
+2285  PRINT W$
+2290  FOR I=1 TO Nstd
+2295    PRINT TABXY(9,2+I);"Line      "
+2300    PRINT TABXY(59,2+I);"          "
+2305    OUTPUT String$ USING "3D.4D";Length(I)
+2310    PRINT TABXY(59,2+I);String$
+2315    PRINT W$
+2320  NEXT I
+2325  PRINT Y$
+2330  PRINT TABXY(1,15);"Eff. Dielectric Const. ";W$;"(";Epsr;",";Epsi;")";
+2335  IF R_line>0 THEN PRINT TABXY(41,15);Y$;"R= ";W$;R_line;C$;" (ohms/cm)";Y$;" Z0= ";W$;Z0_line;C$;" (ohms)"
+2340  IF Flpath$="/" OR Flpath$="//" THEN Flpath$=""
+2345  PRINT TABXY(1,16);Y$;"Low Frequency: ";W$;Freql;
+2346  IF Stdmax<>0 THEN PRINT TABXY(41,16);Y$;"Max. St. Dev. ";W$;Stdmax
+2350  PRINT TABXY(1,17);Y$;"High Frequency: ";W$;Freqh;
+2355  PRINT TABXY(1,18);Y$;"Number of frequencies: ";W$;Nfreq
+2360!   DISP TAB(1);W$;"Hit ";M$;"SHIFT[k9]";W$;" or ";M$;"SHIFT[f8]";W$;" for help";M$
+2365  CALL Editpoint(Editpt)
+2370  IF Tcatsize<0 THEN
+2375    BEEP 81,.2
+2380    DISP "WARNING: Mass storage is not accessable."
+2385  ELSE
+2390    BEEP 4000,.1
+2395  END IF
+2400  PRINT Y$
+2405 SUBEND
+2410  !
+2415  !***********************************************************************
+2420  !
+2425 Editpoint: SUB Editpoint(INTEGER Editpt)
+2430  OPTION BASE 1
+2435  !
+2440  FOR I=3 TO 12
+2445    PRINT TABXY(2,I);"   "
+2450  NEXT I
+2455  PRINT CHR$(138);TABXY(2,Editpt+2);"==>";
+2460 SUBEND
+2465   !
+2470   !*********************************************************************
+2475   !
+2480 Eest: DEF FNEest(Freq,L1,L2,COMPLEX Eps)
+2485  COMPLEX Gammalest,Eest
+2486  COM /Line_parameters/R_line,Z0_line
+2490  Gammalest=CMPLX(0,1)*(.20958450*Freq*SQR(Eps))
+2493  IF R_line>0 THEN
+2494  Omega=2*PI*Freq*1.E+9
+2495  Gamma=.20958450*Freq*SQR(REAL(Eps))  !real part only
+2497  L=(Gamma/Omega)*Z0_line
+2498  C=(Gamma/Omega)/Z0_line
+2500  Gammalest=SQR(CMPLX(R_line,Omega*L)*CMPLX(0,Omega*C))
+2501  IF REAL(Gammalest)<0 THEN Gammalest=-Gammalest
+2503  END IF
+2505  Eest=EXP(-Gammalest*(L2-L1))
+2506  RETURN Eest
+2507 FNEND
+2510  !
+2515 Cmpstd: SUB Cmpstd(Length(*),Freq,Stdev,COMPLEX Eps,INTEGER Nstd)
+2520  OPTION BASE 1
+2525  INTEGER N,J,Jj,Na,Icom
+2530  REAL P
+2535  COMPLEX Eest,Eicom,Dum2(1),Temp
+2540  Na=Nstd-1
+2545  ALLOCATE COMPLEX E(Na),Fact(Na),Esingle(Na)
+2550  ALLOCATE COMPLEX Vinv(Na,Na),V(Na,Na),Vc(Na,Na)
+2555  ALLOCATE COMPLEX Dum1a(Na),Dum1b(Na,1)
+2560    !
+2565  Icom=1
+2570  Eicom=FNEest(Freq,0,Length(Icom),Eps)
+2575    !
+2580  FOR J=1 TO Nstd
+2585    IF (J<>Icom) THEN
+2590      Jj=J
+2595      IF (J>Icom) THEN Jj=J-1
+2600      E(Jj)=FNEest(Freq,Length(Icom),Length(J),Eps)
+2605      Fact(Jj)=E(Jj)-1/E(Jj)
+2610      Esingle(Jj)=FNEest(Freq,0,Length(J),Eps)
+2615    END IF
+2620  NEXT J
+2625    !
+2630  FOR J=1 TO Na
+2635    FOR N=1 TO J-1
+2640      V(J,N)=CONJG(V(N,J))
+2645      Vc(J,N)=CONJG(Vc(N,J))
+2650    NEXT N
+2655    V(J,J)=ABS(E(J))^2
+2660    V(J,J)=V(J,J)+1/V(J,J)
+2665    Vc(J,J)=V(J,J)
+2670    Temp=ABS(Eicom)*ABS(Esingle(J))
+2675    Temp=Temp*Temp
+2680    V(J,J)=V(J,J)+2*Temp
+2685    Vc(J,J)=Vc(J,J)+2/Temp
+2690    Temp=1/ABS(Fact(J))^2
+2695    V(J,J)=V(J,J)*Temp
+2700    Vc(J,J)=Vc(J,J)*Temp
+2705    FOR N=J+1 TO Na
+2710      V(J,N)=(E(J)*CONJG(E(N)))
+2715      Vc(J,N)=1/V(J,N)
+2720      Temp=(ABS(Eicom)^2)*Esingle(J)*CONJG(Esingle(N))
+2725      V(J,N)=V(J,N)+Temp
+2730      Vc(J,N)=Vc(J,N)+1/Temp
+2735      Temp=1/(Fact(J)*CONJG(Fact(N)))
+2740      V(J,N)=V(J,N)*Temp
+2745      Vc(J,N)=Vc(J,N)*Temp
+2750    NEXT N
+2755  NEXT J
+2760    !
+2765  MAT Vinv=INV(V)
+2770  MAT Dum1a=CSUM(Vinv)
+2775  MAT Dum1b(*,1)=Dum1a
+2780  MAT Dum2=CSUM(Dum1b)
+2785  P=1/Dum2(1)
+2790  Bsd=SQR(P)
+2795!   PRINT "FREQ:",Freq,"EST. STD. DEV (B):    ",Bsd
+2800    !
+2805  MAT Vinv=INV(Vc)
+2810  MAT Dum1a=CSUM(Vinv)
+2815  MAT Dum1b(*,1)=Dum1a
+2820  MAT Dum2=CSUM(Dum1b)
+2825  P=1/Dum2(1)
+2830  Csd=SQR(P)
+2835!   PRINT "FREQ:",Freq,"EST. STD. DEV (C):    ",Csd
+2840  Stdev=.5*(Bsd+Csd)                     !PREDICTED STD. DEV.
+2845 SUBEND
+2850    !
+2855 Outmenu: SUB Outmenu(Freq(*),Stdev(*),Stat(*),INTEGER Nfreq)
+2860  OPTION BASE 1
+2865       !
+2870  W$=CHR$(136)    !white
+2875  Y$=CHR$(138)    !yellow
+2880  M$=CHR$(142)    !magenta (pink)
+2885       !
+2890  GOTO 2950
+2895       !
+2900 Leave: !
+2905  CALL Exitprgm(Stat(*))
+2910  SUBEXIT
+2915       !
+2920 Gomain:    !
+2925  OFF ERROR
+2930  CALL Refresh
+2935  SUBEXIT
+2940       !
+2945 Data:      !
+2950  DISP ""
+2955  FOR I=0 TO 9
+2960    ON KEY I LABEL "" GOSUB Kloop
+2965    PRINT TABXY(1,I);RPT$(" ",80)
+2970    PRINT TABXY(1,19-I);RPT$(" ",80)
+2975  NEXT I
+2980  PRINT USING "@"
+2985    !
+2990  Lp=15
+2995  FOR I=0 TO 9
+3000    ON KEY I LABEL "",Lp GOTO Kloop
+3005  NEXT I
+3010  ON KEY 1 LABEL "GetBDAT",Lp GOSUB Getbdat
+3015  ON KEY 2 LABEL "Data",Lp GOTO Data
+3020  ON KEY 3 LABEL "Main",Lp GOTO Gomain
+3025  ON KEY 4 LABEL "Exit",Lp GOTO Leave
+3030  ON KEY 6 LABEL "BDAT",Lp GOSUB Dbdat
+3035  ON KEY 7 LABEL "ASCII",Lp GOSUB Dascii
+3040  ON KEY 8 LABEL "CRT",Lp GOSUB Dcrt
+3045  ON KEY 9 LABEL "Paper",Lp GOSUB Dpaper
+3050  ON KEY 0 LABEL "DOS",Lp GOSUB Dos
+3055    !
+3060  PRINT TABXY(7,2);W$;"Data ready for plotting, printing, or storage:";Y$
+3065  PRINT TABXY(7,6);"Press";M$;" BDAT ";Y$;"to have the data stored on disk in the BDAT format"
+3070  PRINT TABXY(7,8);"Press";M$;" ASCII ";Y$;"to have the data stored on disk in the ASCII format"
+3075  PRINT TABXY(7,10);"Press";M$;" CRT ";Y$;"to have the data displayed on the screen"
+3080  PRINT TABXY(7,12);"Press";M$;" Paper ";Y$;"to have a hard copy of the data"
+3085  PRINT TABXY(7,14);"Press";M$;" Data ";Y$;"to return to the data menu"
+3090  PRINT TABXY(7,16);"Press";M$;" Deembed Menu ";Y$;"to return to the main menu"
+3095  PRINT TABXY(7,18);"Press";M$;" Exit ";Y$;"to exit program"
+3100    !
+3105 Kloop: LOOP
+3110  END LOOP
+3115       !
+3120 Getbdat:   !
+3125  DISP "Enter BDAT file name; """" to abort";
+3130  INPUT "",Filen$
+3135  IF Filen$="" THEN GOTO Disl
+3140  ON ERROR GOTO Getfileerror
+3145  ASSIGN @Path TO Filen$
+3150  OFF ERROR
+3155  ON ERROR GOTO Getsizeerror
+3160  ENTER @Path;Freq(*),Stdev(*)
+3165  ASSIGN @Path TO *
+3170  OFF ERROR
+3175  GOTO Getreturn
+3180 Getfileerror:    !
+3185  BEEP 200,.2
+3190  DISP "File not found."
+3195  GOTO Getreturn
+3200 Getsizeerror:    !
+3205  BEEP 200,.2
+3210  DISP "File does not contain sufficient data."
+3215 Getreturn:    !
+3220  RETURN
+3225    !
+3230 Dbdat:        !
+3235  Rows=Nfreq
+3240  DISP "Enter a filename to store selected data; """" to abort";
+3245  INPUT "",Dfilen$
+3250  IF Dfilen$="" THEN RETURN
+3255  ON ERROR GOTO 3240
+3260  CREATE BDAT Dfilen$,Rows,16
+3265  OFF ERROR
+3270  ASSIGN @Dout TO Dfilen$
+3275  OUTPUT @Dout;Freq(*),Stdev(*)
+3280  ASSIGN @Dout TO *
+3285  DISP "Data save in file ",Dfilen$
+3290  BEEP 2000,.1
+3295  RETURN
+3300 Dascii: !
+3305  DISP "Enter a filename to store selected data; """" to abort";
+3310  INPUT "",Dfilen$
+3315  IF Dfilen$="" THEN GOTO 3385
+3320  ON ERROR GOTO 3305
+3325  CREATE ASCII Dfilen$,Nfreq
+3330  OFF ERROR
+3335  ASSIGN @Dout TO Dfilen$
+3340  ALLOCATE Dout$[40]
+3345  FOR I=1 TO Nfreq
+3350    OUTPUT Dout$ USING 3365;Freq(I),Stdev(I)
+3355    OUTPUT @Dout;TRIM$(Dout$)
+3360  NEXT I
+3365  IMAGE #,3D.4D,3D.4D
+3370  ASSIGN @Dout TO *
+3375  DISP "Data save in file ",Dfilen$
+3380  DEALLOCATE Dout$
+3385  BEEP 2000,.1
+3390  RETURN
+3395 Dos: !
+3400  DISP "Enter a filename to store selected data; """" to abort";
+3405  INPUT "",Dfilen$
+3410  IF Dfilen$="" THEN GOTO 3480
+3415  ON ERROR GOTO 3400
+3420  CREATE Dfilen$,40*Nfreq
+3425  OFF ERROR
+3430  ASSIGN @Dout TO Dfilen$;FORMAT ON
+3435  ALLOCATE Dout$[40]
+3440  FOR I=1 TO Nfreq
+3445    OUTPUT Dout$ USING 3460;Freq(I),Stdev(I)
+3450    OUTPUT @Dout;TRIM$(Dout$)
+3455  NEXT I
+3460  IMAGE #,3D.4D,3D.4D
+3465  ASSIGN @Dout TO *
+3470  DISP "Data save in file ",Dfilen$
+3475  DEALLOCATE Dout$
+3480  BEEP 2000,.1
+3485  RETURN
+3490 Dcrt:         !
+3495  OUTPUT 1;CHR$(12);
+3500  OUTPUT 1;"Freq       Standard Deviation"
+3505            !
+3510  Maxl=0
+3515  J=0
+3520  WHILE Maxl<Nfreq
+3525    I=0
+3530    WHILE I<15 AND J<Nfreq
+3535      I=I+1
+3540      J=I+Maxl
+3545      OUTPUT 1 USING 3555;Freq(J),Stdev(J)
+3550    END WHILE
+3555    IMAGE 3D.4D,XXXXXXXX,3D.4D
+3560    DISP "Hit RETURN to continue list; ""Q"" to quit";
+3565    Resp$=""
+3570    INPUT "",Resp$
+3575    IF Resp$="Q" OR Resp$="q" THEN Maxl=2*Nfreq
+3580    Maxl=Maxl+15
+3585  END WHILE
+3590  DISP "Print out complete"
+3595  BEEP 2000,.1
+3600  RETURN
+3605 Dpaper:       !
+3610  OUTPUT 701;"Freq       Standard Deviation   "
+3615  FOR J=1 TO Nfreq
+3620    OUTPUT 701 USING 3555;Freq(J),Stdev(J)
+3625  NEXT J
+3630  OUTPUT 701;""
+3635  DISP "Print out complete"
+3640  BEEP 2000,.1
+3645  RETURN
+3650  OFF ERROR
+3655    !
+3660 SUBEND
+3665  !
+3670 Exitprgm: SUB Exitprgm(Stat(*))
+3675  CONTROL CRT,15;Stat(1)  !PRINT PEN
+3680  CONTROL CRT,17;Stat(3)  !KBD LINE PEN
+3685  CONTROL KBD,15;Stat(4)  !KBD CMODE
+3690  CONTROL CRT,16;Stat(2)  !KEY LABELS PEN; needs to be after KBD CMODE
+3695  OUTPUT KBD;CHR$(255)&"K";     !CLEAR SCREEN
+3700  DISP "Program terminated"
+3705  STOP
+3710 SUBEND
+</script>
+
+</code></pre>
+
+<script src="prism.js" data-default-language="markup"></script>
+</body>
+</html>

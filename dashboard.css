@@ -45,7 +45,7 @@ body {
     overflow-x: hidden;
     overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
     background-color: #ffffff;
-    opacity: .5;
+    opacity: 1;
     border-right: 1px solid #eee;
     color:#000000;
   }
