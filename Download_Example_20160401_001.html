@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Summer Note Example</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <!-- It is important to put the bootstrap scripts in the head -->
+  <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css"/>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+  <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+    <script src="//cdnjs.cloudflare.com/ajax/libs/react/0.13.3/react-with-addons.js"></script>
+        <link href="./dist/summernote.css" rel="stylesheet">
+    <script src="./dist/summernote.js"></script>
+
+</head>
+<body>
+<div id="notes">
+<div id="summernote">Hello Summernote</div>
+    </div>
+<button id="Download" class="btn btn-primary" >Download</button>
+<iframe id="my_iframe" ><!DOCTYPE html>
+<html>
+  <head>
+    <style type="text/css">...</style>
+    <script type="text/JavaScript">
+    window.onload = function() {
+      var txt = document.getElementById('txt');
+      txt.value = window.onload + '';
+      document.getElementById('link').onclick = function(code) {
+        this.href = 'data:text/plain;charset=utf-8,'
+          + encodeURIComponent(txt.value);
+      };
+    };
+
+    main();
+    </script>
+  </head>
+  <body>
+    <div id="txtWrap">
+      <textarea id="txt"></textarea>
+    </div>
+    <a href="" id="link" download="code.txt">Download Above Code</a>
+  </body>
+</html>
+</iframe>
+
+<script>
+    $(document).ready(function() {
+  $('#summernote').summernote();
+  $('#Download').click(function(){
+  $('#notes').toggle();
+   console.log($('#my_iframe').src);
+  function Download(url) {
+  console.log($('#summernote').summernote('code'));
+    document.getElementById('my_iframe').src = url;
+};
+  });
+});
+</script>
+
+<script>
+
+function Download(url) {
+    document.getElementById('my_iframe').src = url;
+};
+</script>
+</body>
+</html>
