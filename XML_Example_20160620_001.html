@@ -1,4 +1,4 @@
-<html>
+<html xmlns="http://www.w3.org/1999/html">
 <head>
 <script>
 function loadXMLDoc(filename)
@@ -20,8 +20,13 @@ return xhttp.responseXML;
 function displayResult()
 {
 // This is where you load the files, is there a way to select from file system? Dropzone does this
-    xml = loadXMLDoc("muf_menu.xml");
-    xsl = loadXMLDoc("DEFAULT_STYLE.xsl");
+    console.log(document.getElementById('xml').files[0].name);
+    var xmlFilePath=document.getElementById('xml').files[0].name;
+    var xslFilePath=document.getElementById('xsl').files[0].name;
+
+    xml = loadXMLDoc(xmlFilePath);
+    xsl = loadXMLDoc(xslFilePath);
+
 // code for IE
 if (window.ActiveXObject || xhttp.responseType == "msxml-document")
   {
@@ -43,7 +48,10 @@ else if (document.implementation && document.implementation.createDocument)
 
 </script>
 </head>
-<body onload="displayResult()">
+<body >
+<input type="file"  id="xml"/>
+<input type="file"  id="xsl"/>
+<input type="button" id="transform" onclick="displayResult()" value="Transform XML"/>
 <a href="muf_menu.xml" download="XML_Test.xml">Press ME!</a>
 <div id="example" ></div>
 <div id="xmlText"/>
