@@ -26,12 +26,14 @@ function displayResult()
 
     xml = loadXMLDoc(xmlFilePath);
     xsl = loadXMLDoc(xslFilePath);
-
+    var output=null;
 // code for IE
 if (window.ActiveXObject || xhttp.responseType == "msxml-document")
   {
   ex = xml.transformNode(xsl);
   document.getElementById("example").innerHTML = ex;
+  console.log(ex);
+  output= document.getElementById("example").innerHTML;
   }
 // code for Chrome, Firefox, Opera, etc.
 else if (document.implementation && document.implementation.createDocument)
@@ -40,11 +42,30 @@ else if (document.implementation && document.implementation.createDocument)
   xsltProcessor.importStylesheet(xsl);
   resultDocument = xsltProcessor.transformToFragment(xml, document);
   document.getElementById("example").appendChild(resultDocument);
+  output=document.getElementById("example").innerHTML;
+  console.log(output);
   }
-  var fileName=xml.getElementsByTagName("Model")[0].getAttribute('FileName');
+  var fileName=xmlFilePath;
+  console.log("The File Name is:"+String(fileName));
+  var outputName=String(fileName).replace('xml','html');
   document.getElementById("xmlText").innerHTML=fileName;
-  console.log(xml.getElementsByTagName("Model"));
+  //var outputString=new XMLSerializer().serializeToString(output);
+  var outputBlob=new Blob([output], {type: 'text/plain'});
+  var downloadTag=document.getElementById('download');
+  console.log(output);
+  downloadTag.setAttribute('href',window.URL.createObjectURL(outputBlob));
+  downloadTag.setAttribute('download', outputName);
+  downloadTag.dataset.downloadurl = ['text/plain', downloadTag.download, downloadTag.href].join(':');
  }
+
+ function downloadOutput(textOutput,downloadAnchorId){
+  var outputBlob=new Blob([textOutput], {type: 'text/plain'});
+  var downloadTag=document.getElementById(downloadAnchorId);
+  console.log(output);
+  downloadTag.setAttribute('href',window.URL.createObjectURL(outputBlob));
+  downloadTag.setAttribute('download', outputName);
+  downloadTag.dataset.downloadurl = ['text/plain', downloadTag.download, downloadTag.href].join(':');
+  }
 
 </script>
 </head>
@@ -52,9 +73,12 @@ else if (document.implementation && document.implementation.createDocument)
 <input type="file"  id="xml"/>
 <input type="file"  id="xsl"/>
 <input type="button" id="transform" onclick="displayResult()" value="Transform XML"/>
-<a href="muf_menu.xml" download="XML_Test.xml">Press ME!</a>
+<a id="download" >Download Transformed Fragment</a>
+<br/>
+<a id="downloadHTML" >Download Full HTML Document Fragment</a>
+<div id="xmlText"></div>
 <div id="example" ></div>
-<div id="xmlText"/>
+
 
 </body>
 </html>
