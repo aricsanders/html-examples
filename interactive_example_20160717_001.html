@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+
+<body>
+
+<form>
+   <input type="range" name="points" id="slider" value="50" min="0" max="100" data-show-value="true" />
+</form>
+<div id="output">Hello</div>
+<div id="slider-value"></div>
+<input type="button" id="B1" />
+<select id="selection">
+   <option value="volvo">Volvo</option>
+  <option value="saab">Saab</option>
+  <option value="mercedes">Mercedes</option>
+  <option value="audi">Audi</option>
+</select>
+<input type="radio" id="check"/>
+<textarea id="textbox" >Some Text</textarea>
+<input type="color" id="color-select" />
+<script>
+document.getElementById("color-select").addEventListener('select',printValue,false);
+document.getElementById("textbox").addEventListener('select',printValue,false);
+document.getElementById("check").addEventListener('change',printValue,false);
+document.getElementById("selection").addEventListener('change',printValue,false);
+elementOne=document.getElementById("slider")
+console.log(elementOne.value)
+elementOne.addEventListener('change',printValue,false);
+function printValue() {
+	//this.style.backgroundColor = '#cc0000';
+	var outputElement=document.getElementById("output");
+	outputElement.innerHTML=this.value;
+}
+element=document.getElementById("output")
+element.addEventListener('click',doSomething,false);
+element.addEventListener('click',printValue,false);
+
+function doSomething() {
+	this.style.backgroundColor = '#cc0000';
+	console.log(this.innerHTML);
+}
+
+
+</script>
+
+</body>
+
+</html>
