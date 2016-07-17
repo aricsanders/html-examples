@@ -4,7 +4,7 @@
 <head>
 
 
-<body>
+<input>
 <h1>A page that tests the value attribute of input elements </h1>
 <hr/>
 <h3>Output:</h3>
@@ -15,7 +15,7 @@
 </form>
 
 <div id="slider-value"></div>
-<input type="button" id="B1" />
+<input type="button" id="B1" name="button" value="Press Me">Press me </input>
 <select id="selection">
    <option value="volvo">Volvo</option>
   <option value="saab">Saab</option>
@@ -23,17 +23,23 @@
   <option value="audi">Audi</option>
 </select>
 <input type="radio" id="check"/>
-<textarea id="textbox" >Some Text</textarea>
+    <form id="text">
+
+<textarea id="textbox" formid="text" >Some Text</textarea>
+    <input type="submit" /></form>
 <input type="color" id="color-select" />
 <input type="number" id="number" />
 <input type="file" id="file" />
 <br>
 
 <script>
+document.getElementById("text").addEventListener('submit',printValue,false);
+document.getElementById("B1").addEventListener('click',printValue,false);
 document.getElementById("file").addEventListener('change',printValue,false);
 document.getElementById("number").addEventListener('change',printValue,false);
 document.getElementById("color-select").addEventListener('change',printValue,false);
 document.getElementById("textbox").addEventListener('select',printValue,false);
+document.getElementById("textbox").addEventListener('change',printValue,false);
 document.getElementById("check").addEventListener('change',printValue,false);
 document.getElementById("selection").addEventListener('change',printValue,false);
 elementOne=document.getElementById("slider")
