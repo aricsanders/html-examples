@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-        <title>User test</title>
+        <title>Image Editor Test</title>
 
 
     <!--<meta name="viewport" content="width=device-width, initial-scale=1"/>-->
     <!-- It is important to put the bootstrap scripts in the head -->
-  <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css"/>
+
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
-  <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+
 
     <!-- stylesheet -->
     <style>
@@ -5682,7 +5682,7 @@ module.exports = tools;
 (18)
 });
 </script>
-     <link href="./css/dashboard.css" rel="stylesheet">
+
   </head>
   <body>
 
@@ -5700,7 +5700,7 @@ module.exports = tools;
     <script>
         var lc = LC.init(
             document.getElementsByClassName('literally')[0],
-            {imageURLPrefix:  "./literallycanvas-0.4.11/img"}
+            {imageURLPrefix:  "./literallycanvas-0.4.11/img",secondaryColor:'transparent'}
         );
 
 
@@ -5730,9 +5730,11 @@ module.exports = tools;
       var newImage=new Image();
       //output.src = dataURL;
       newImage.src=dataURL;
+      var scaleImage= 369/(newImage.height+20)
+      var centerImage=500-newImage.width*scaleImage/2
 
       //lc.setImageSize(newImage.width,newImage.height)
-      lc.saveShape(LC.createShape('Image', {x: 10, y: 10, image: newImage}));
+      lc.saveShape(LC.createShape('Image', {x: centerImage, y: 5, image: newImage,scale:scaleImage}));
 
     };
     reader.readAsDataURL(input.files[0]);
