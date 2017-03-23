@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>File Loader Example</title>
+</head>
+<body>
+<input type='file' accept='*' onchange='openFile(event)'><br>
+<a id='output'>
+<script>
+  var openFile = function(event) {
+    var input = event.target;
+
+    var reader = new FileReader();
+    reader.onload = function(){
+      var dataURL = reader.result;
+      var output = document.getElementById('output');
+      output.href = dataURL;
+      output.innerHTML=input.files[0].name;
+    };
+    reader.readAsDataURL(input.files[0]);
+  };
+</script>
+
+</body>
+</html>
