@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Example for Precision</title>
+
+</head>
+<body>
+
+Input a super long number here<input type="number" id="number-input" name="long-number" value="12.333333" onchange="trim(this.value)"/>
+<p id="output"></p>
+<a href="https://www.w3schools.com/jsref/jsref_toprecision.asp">Example of num.toPrecision()</a>
+    <script>
+
+    function trim(value){
+    var number= new Number(value);
+    var outputElement=document.getElementById("output");
+    outputElement.innerHTML=number.toPrecision(4);
+    }
+
+</script>
+</body>
+</html>
